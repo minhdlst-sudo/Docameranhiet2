@@ -1,0 +1,7 @@
+{
+  "name": "PCQN Smart Thermal",
+  "description": "Ứng dụng chuyển đổi số thu thập dữ liệu camera nhiệt tại hiện trường PC Quảng Ngãi.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
