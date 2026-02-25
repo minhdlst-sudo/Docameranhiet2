@@ -2,12 +2,12 @@
 import { GoogleGenAI } from "@google/genai";
 
 export const getThermalAnalysis = async (temp: number, refTemp: number, load: number) => {
-  // Lấy API Key từ biến môi trường (được Netlify hoặc môi trường build inject vào)
-  const apiKey = process.env.GEMINI_API_KEY;
+  // Lấy API Key từ biến môi trường (Vite yêu cầu tiền tố VITE_ để lộ ra client)
+  const apiKey = (import.meta as any).env.VITE_GEMINI_API_KEY || (import.meta as any).env.GEMINI_API_KEY || process.env.GEMINI_API_KEY;
   
   if (!apiKey) {
-    console.error("API_KEY is missing in process.env");
-    return "Lỗi: Chưa cấu hình API_KEY trên hosting (Netlify). Hãy vào Site Settings > Environment variables để thêm.";
+    console.error("GEMINI_API_KEY is missing");
+    return "Lỗi: Chưa cấu hình API_KEY trên hosting. Hãy vào phần cài đặt Environment Variables để thêm biến VITE_GEMINI_API_KEY.";
   }
 
   // Khởi tạo AI trực tiếp theo hướng dẫn
