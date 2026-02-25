@@ -7,9 +7,9 @@ import DataViewer from './components/DataViewer';
 import Dashboard from './components/Dashboard';
 import ActionPlanEditor from './components/ActionPlanEditor';
 import FeederManager from './components/FeederManager';
-import { submitThermalData } from './services/gasService';
+import { submitThermalData, fetchThermalData } from './services/gasService';
 
-const GAS_URL = "https://script.google.com/macros/s/AKfycbyUnUPbUeluEwZw6aCGbXqxpEZPDHybxH8WgnWau5IDA6S8wh4ChEq1RF8PUHiUDRl4Ig/exec"; 
+const GAS_URL = "https://script.google.com/macros/s/AKfycbyOyJpnPbCDrtr6HfVqR83oMRPDxRzfT0f37ZxY4t9oM-uZNEtt2IL2qo9Hw4HOGtCQ1A/exec"; 
 
 const App: React.FC = () => {
   const [view, setView] = useState<ViewState>(ViewState.LOGIN);
@@ -139,7 +139,7 @@ const App: React.FC = () => {
               </button>
             </div>
 
-            <ThermalForm unit={userUnit} onSubmit={handleSubmit} isSubmitting={isSubmitting} />
+            <ThermalForm unit={userUnit} gasUrl={GAS_URL} onSubmit={handleSubmit} isSubmitting={isSubmitting} />
           </div>
         )}
 
@@ -156,7 +156,7 @@ const App: React.FC = () => {
         )}
 
         {view === ViewState.FEEDER_MANAGER && (
-          <FeederManager unit={userUnit} onBack={() => setView(ViewState.FORM)} />
+          <FeederManager unit={userUnit} gasUrl={GAS_URL} onBack={() => setView(ViewState.FORM)} />
         )}
 
         <footer className="mt-10 text-center space-y-2">
