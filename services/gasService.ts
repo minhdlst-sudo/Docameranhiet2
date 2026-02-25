@@ -106,6 +106,56 @@ export const fetchThermalData = async (gasUrl: string): Promise<ThermalData[]> =
   }
 };
 
+export const fetchFeedersFromSheet = async (gasUrl: string): Promise<Record<string, string[]>> => {
+  if (!gasUrl) return {};
+  try {
+    const response = await fetch(`${gasUrl}?action=getFeeders&_t=${Date.now()}`);
+    if (!response.ok) throw new Error('Không thể tải danh sách xuất tuyến');
+    const result = await response.json();
+    if (result.success && result.data) {
+      return result.data;
+    }
+    return {};
+  } catch (error) {
+    console.error('Error fetching feeders:', error);
+    return {};
+  }
+};
+
+export const manageFeederOnSheet = async (gasUrl: string, payload: {
+  action: 'addFeeder' | 'deleteFeeder';
+  unit: string;
+  feeder: string;
+}): Promise<{ success: boolean; message: string }> => {
+  if (!gasUrl) return { success: false, message: 'Chưa cấu hình URL' };
+  try {
+    const response = await fetch(gasUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify(payload),
+    });
+    
+    const text = await response.text();
+    try {
+      const result = JSON.parse(text);
+      // Nếu là xóa và báo success: false, có thể là do không tìm thấy dòng để xóa (đã xóa rồi)
+      // Chúng ta vẫn coi là thành công về mặt logic ứng dụng nếu message chỉ ra điều đó
+      const isDeleteNotFound = payload.action === 'deleteFeeder' && result.success === false;
+      
+      return {
+        success: !!result.success || isDeleteNotFound,
+        message: result.message || (result.success ? 'Thành công' : (isDeleteNotFound ? 'Đã xóa hoặc không tìm thấy' : 'Thất bại trên máy chủ'))
+      };
+    } catch (e) {
+      if (text.includes('"success":true')) return { success: true, message: 'Thành công' };
+      return { success: false, message: 'Lỗi phản hồi từ máy chủ' };
+    }
+  } catch (error) {
+    console.error('Error managing feeder:', error);
+    return { success: false, message: 'Lỗi kết nối máy chủ' };
+  }
+};
+
 export const updateActionPlan = async (gasUrl: string, data: { 
   stationName: string; 
   deviceLocation: string; 

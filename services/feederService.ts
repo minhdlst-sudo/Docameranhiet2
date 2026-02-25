@@ -1,7 +1,7 @@
 
 import { UNIT_FEEDERS, DEFAULT_FEEDERS } from '../constants';
 
-const STORAGE_KEY = 'qnpc_feeder_lib_v3';
+const STORAGE_KEY = 'qnpc_feeder_lib_v4';
 
 export const getFeederLibrary = (): Record<string, string[]> => {
   const stored = localStorage.getItem(STORAGE_KEY);

@@ -9,7 +9,7 @@ import ActionPlanEditor from './components/ActionPlanEditor';
 import FeederManager from './components/FeederManager';
 import { submitThermalData, fetchThermalData } from './services/gasService';
 
-const GAS_URL = "https://script.google.com/macros/s/AKfycbyOyJpnPbCDrtr6HfVqR83oMRPDxRzfT0f37ZxY4t9oM-uZNEtt2IL2qo9Hw4HOGtCQ1A/exec"; 
+const GAS_URL = (import.meta as any).env.VITE_GAS_URL || "https://script.google.com/macros/s/AKfycbyOyJpnPbCDrtr6HfVqR83oMRPDxRzfT0f37ZxY4t9oM-uZNEtt2IL2qo9Hw4HOGtCQ1A/exec"; 
 
 const App: React.FC = () => {
   const [view, setView] = useState<ViewState>(ViewState.LOGIN);

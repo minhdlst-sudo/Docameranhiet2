@@ -1,31 +1,56 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { getFeedersForUnit, updateFeedersForUnit, resetFeedersForUnit } from '../services/feederService';
-import { UNIT_FEEDERS, DEFAULT_FEEDERS } from '../constants';
+import { getFeedersForUnit, updateFeedersForUnit } from '../services/feederService';
+import { fetchFeedersFromSheet, manageFeederOnSheet } from '../services/gasService';
 
 interface FeederManagerProps {
   unit: string;
+  gasUrl: string;
   onBack: () => void;
 }
 
-const FeederManager: React.FC<FeederManagerProps> = ({ unit, onBack }) => {
+const FeederManager: React.FC<FeederManagerProps> = ({ unit, gasUrl, onBack }) => {
   const [feeders, setFeeders] = useState<string[]>([]);
   const [newFeeder, setNewFeeder] = useState('');
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const [deletedHistory, setDeletedHistory] = useState<string[]>([]);
   const [showHistory, setShowHistory] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [syncStatus, setSyncStatus] = useState<'idle' | 'syncing' | 'success' | 'error'>('idle');
 
   // Load data
-  const loadData = useCallback(() => {
-    const data = getFeedersForUnit(unit);
-    setFeeders(data);
-  }, [unit]);
+  const loadData = useCallback(async () => {
+    setIsLoading(true);
+    setSyncStatus('syncing');
+    
+    // 1. Load from local first for immediate UI
+    const localData = getFeedersForUnit(unit);
+    setFeeders(localData);
+
+    // 2. Try to sync from Google Sheet
+    try {
+      const remoteLibrary = await fetchFeedersFromSheet(gasUrl);
+      if (remoteLibrary && remoteLibrary[unit]) {
+        const remoteFeeders = remoteLibrary[unit];
+        setFeeders(remoteFeeders);
+        updateFeedersForUnit(unit, remoteFeeders);
+        setSyncStatus('success');
+      } else {
+        setSyncStatus('idle');
+      }
+    } catch (error) {
+      console.error('Sync error:', error);
+      setSyncStatus('error');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [unit, gasUrl]);
 
   useEffect(() => {
     loadData();
   }, [loadData]);
 
-  const handleAdd = () => {
+  const handleAdd = async () => {
     const trimmed = newFeeder.trim();
     if (!trimmed) return;
     
@@ -34,27 +59,97 @@ const FeederManager: React.FC<FeederManagerProps> = ({ unit, onBack }) => {
       return;
     }
     
-    const updatedFeeders = [...feeders, trimmed];
-    setFeeders(updatedFeeders);
-    updateFeedersForUnit(unit, updatedFeeders);
-    setNewFeeder('');
-  };
+    setIsLoading(true);
+    setSyncStatus('syncing');
+    
+    try {
+      // 1. Update on Google Sheet
+      const result = await manageFeederOnSheet(gasUrl, {
+        action: 'addFeeder',
+        unit: unit,
+        feeder: trimmed
+      });
 
-  const handleDelete = (feederToDelete: string) => {
-    const updated = feeders.filter(f => f !== feederToDelete);
-    setFeeders(updated);
-    setDeletedHistory(prev => [feederToDelete, ...prev]);
-    updateFeedersForUnit(unit, updated);
-    setConfirmDelete(null);
-  };
-
-  const handleRestore = (itemToRestore: string) => {
-    if (!feeders.includes(itemToRestore)) {
-      const updated = [...feeders, itemToRestore];
-      setFeeders(updated);
-      updateFeedersForUnit(unit, updated);
+      if (result.success) {
+        // 2. Update local state
+        const updatedFeeders = [...feeders, trimmed];
+        setFeeders(updatedFeeders);
+        updateFeedersForUnit(unit, updatedFeeders);
+        setNewFeeder('');
+        setSyncStatus('success');
+      } else {
+        alert('Lỗi: ' + result.message);
+        setSyncStatus('error');
+      }
+    } catch (error) {
+      alert('Lỗi kết nối máy chủ');
+      setSyncStatus('error');
+    } finally {
+      setIsLoading(false);
     }
-    setDeletedHistory(prev => prev.filter(item => item !== itemToRestore));
+  };
+
+  const handleDelete = async (feederToDelete: string) => {
+    setIsLoading(true);
+    setSyncStatus('syncing');
+
+    try {
+      // 1. Update on Google Sheet
+      const result = await manageFeederOnSheet(gasUrl, {
+        action: 'deleteFeeder',
+        unit: unit,
+        feeder: feederToDelete
+      });
+
+      if (result.success) {
+        // 2. Update local state
+        const updated = feeders.filter(f => f !== feederToDelete);
+        setFeeders(updated);
+        setDeletedHistory(prev => [feederToDelete, ...prev]);
+        updateFeedersForUnit(unit, updated);
+        setConfirmDelete(null);
+        setSyncStatus('success');
+      } else {
+        alert('Lỗi: ' + result.message);
+        setSyncStatus('error');
+      }
+    } catch (error) {
+      alert('Lỗi kết nối máy chủ');
+      setSyncStatus('error');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleRestore = async (itemToRestore: string) => {
+    if (!feeders.includes(itemToRestore)) {
+      setIsLoading(true);
+      setSyncStatus('syncing');
+      try {
+        const result = await manageFeederOnSheet(gasUrl, {
+          action: 'addFeeder',
+          unit: unit,
+          feeder: itemToRestore
+        });
+        if (result.success) {
+          const updated = [...feeders, itemToRestore];
+          setFeeders(updated);
+          updateFeedersForUnit(unit, updated);
+          setDeletedHistory(prev => prev.filter(item => item !== itemToRestore));
+          setSyncStatus('success');
+        } else {
+          alert('Lỗi khôi phục: ' + result.message);
+          setSyncStatus('error');
+        }
+      } catch (error) {
+        alert('Lỗi kết nối máy chủ');
+        setSyncStatus('error');
+      } finally {
+        setIsLoading(false);
+      }
+    } else {
+      setDeletedHistory(prev => prev.filter(item => item !== itemToRestore));
+    }
   };
 
   return (
@@ -101,20 +196,34 @@ const FeederManager: React.FC<FeederManagerProps> = ({ unit, onBack }) => {
       )}
 
       <div className="mb-6">
-        <p className="text-[10px] font-bold text-slate-400 uppercase mb-2">Đơn vị: {unit}</p>
+        <div className="flex items-center justify-between mb-2">
+          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Đơn vị: {unit}</p>
+          {syncStatus !== 'idle' && (
+            <div className={`flex items-center gap-1.5 px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-wider ${
+              syncStatus === 'syncing' ? 'bg-blue-50 text-blue-600 animate-pulse' :
+              syncStatus === 'success' ? 'bg-emerald-50 text-emerald-600' :
+              'bg-rose-50 text-rose-600'
+            }`}>
+              {syncStatus === 'syncing' ? 'Đang đồng bộ...' : 
+               syncStatus === 'success' ? 'Đã đồng bộ Sheet' : 'Lỗi đồng bộ'}
+            </div>
+          )}
+        </div>
         <div className="flex gap-2">
           <input 
             type="text" 
+            disabled={isLoading}
             value={newFeeder}
             onChange={e => setNewFeeder(e.target.value)}
             placeholder="Nhập tên xuất tuyến mới..."
-            className="flex-1 p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none text-sm focus:ring-2 focus:ring-blue-500"
+            className="flex-1 p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none text-sm focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
           />
           <button 
             onClick={handleAdd}
-            className="bg-blue-600 text-white px-6 rounded-xl font-bold text-sm hover:bg-blue-700 active:scale-95 transition-all shadow-lg shadow-blue-100"
+            disabled={isLoading || !newFeeder.trim()}
+            className="bg-blue-600 text-white px-6 rounded-xl font-bold text-sm hover:bg-blue-700 active:scale-95 transition-all shadow-lg shadow-blue-100 disabled:opacity-50"
           >
-            Thêm
+            {isLoading ? '...' : 'Thêm'}
           </button>
         </div>
       </div>
@@ -134,13 +243,15 @@ const FeederManager: React.FC<FeederManagerProps> = ({ unit, onBack }) => {
                   <div className="flex gap-2">
                     <button 
                       onClick={() => handleDelete(f)}
-                      className="bg-rose-600 text-white text-[10px] font-black uppercase px-3 py-1.5 rounded-lg hover:bg-rose-700 active:scale-90 transition-all"
+                      disabled={isLoading}
+                      className="bg-rose-600 text-white text-[10px] font-black uppercase px-3 py-1.5 rounded-lg hover:bg-rose-700 active:scale-90 transition-all disabled:opacity-50"
                     >
                       Xóa
                     </button>
                     <button 
                       onClick={() => setConfirmDelete(null)}
-                      className="bg-slate-200 text-slate-600 text-[10px] font-black uppercase px-3 py-1.5 rounded-lg hover:bg-slate-300 active:scale-90 transition-all"
+                      disabled={isLoading}
+                      className="bg-slate-200 text-slate-600 text-[10px] font-black uppercase px-3 py-1.5 rounded-lg hover:bg-slate-300 active:scale-90 transition-all disabled:opacity-50"
                     >
                       Hủy
                     </button>

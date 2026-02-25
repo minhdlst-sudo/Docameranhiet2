@@ -3,7 +3,7 @@ import { GoogleGenAI } from "@google/genai";
 
 export const getThermalAnalysis = async (temp: number, refTemp: number, load: number) => {
   // Lấy API Key từ biến môi trường (được Netlify hoặc môi trường build inject vào)
-  const apiKey = process.env.GEMINI_API_KEY;
+  const apiKey = process.env.API_KEY;
   
   if (!apiKey) {
     console.error("API_KEY is missing in process.env");

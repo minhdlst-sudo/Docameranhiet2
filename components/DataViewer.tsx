@@ -117,28 +117,28 @@ const DataViewer: React.FC<DataViewerProps> = ({ gasUrl, currentUnit, onBack }) 
     // Tiêu đề cột
     const headers = [
       "Đơn vị", "Trạm/Nhánh rẽ", "Xuất tuyến", "Loại kiểm tra", "Vị trí cột", 
-      "Pha", "Nhiệt độ đo (°C)", "Tham chiếu (°C)", "Nhiệt độ môi trường (°C)", 
+      "Pha", "Nhiệt độ đo (°C)", "Tham chiếu (°C)", "Môi trường (°C)", 
       "Dòng điện phụ tải (A)", "Kết luận", "Người kiểm tra", "Ngày đo", 
       "Kế hoạch xử lý", "Ngày đã xử lý", "Nhiệt độ sau xử lý"
     ];
 
     // Chuyển dữ liệu thành các dòng CSV
     const csvRows = filteredData.map(item => [
-      `"${item.unit}"`,
-      `"${item.stationName}"`,
-      `"${item.feeder}"`,
-      `"${item.inspectionType}"`,
-      `"${item.deviceLocation}"`,
-      `"${item.phase}"`,
+      `="${item.unit}"`,
+      `="${item.stationName}"`,
+      `="${item.feeder}"`,
+      `="${item.inspectionType}"`,
+      `="${item.deviceLocation}"`,
+      `="${item.phase}"`,
       item.measuredTemp,
       item.referenceTemp,
       item.ambientTemp,
       item.currentLoad,
-      `"${item.conclusion.replace(/"/g, '""')}"`,
-      `"${item.inspector}"`,
+      `="${item.conclusion.replace(/"/g, '""')}"`,
+      `="${item.inspector}"`,
       `"${new Date(item.date).toLocaleDateString('vi-VN')}"`,
-      `"${(item.actionPlan || "").replace(/"/g, '""')}"`,
-      `"${item.processedDate || ""}"`,
+      `="${(item.actionPlan || "").replace(/"/g, '""')}"`,
+      `="${item.processedDate || ""}"`,
       item.postTemp || ""
     ].join(","));
 

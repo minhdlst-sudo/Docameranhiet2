@@ -1,17 +1,19 @@
 
 import React, { useState, useEffect } from 'react';
 import { ThermalData } from '../types';
-import { getFeedersForUnit } from '../services/feederService';
+import { getFeedersForUnit, updateFeedersForUnit } from '../services/feederService';
+import { fetchFeedersFromSheet } from '../services/gasService';
 import { getThermalAnalysis } from '../services/geminiService';
-import { Sparkles, Thermometer, MapPin, Zap } from 'lucide-react';
+import { Sparkles, Thermometer, MapPin, Zap, CloudSun } from 'lucide-react';
 
 interface ThermalFormProps {
   unit: string;
+  gasUrl: string;
   onSubmit: (data: ThermalData) => Promise<boolean>;
   isSubmitting: boolean;
 }
 
-const ThermalForm: React.FC<ThermalFormProps> = ({ unit, onSubmit, isSubmitting }) => {
+const ThermalForm: React.FC<ThermalFormProps> = ({ unit, gasUrl, onSubmit, isSubmitting }) => {
   const getInitialState = (): ThermalData => ({
     unit,
     stationName: '',
@@ -33,10 +35,67 @@ const ThermalForm: React.FC<ThermalFormProps> = ({ unit, onSubmit, isSubmitting 
   const [formData, setFormData] = useState<Partial<ThermalData>>(getInitialState());
   const [feeders, setFeeders] = useState<string[]>([]);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [isFetchingWeather, setIsFetchingWeather] = useState(false);
+
+  const fetchWeather = () => {
+    if (!navigator.geolocation) {
+      alert("Trình duyệt của bạn không hỗ trợ định vị GPS.");
+      return;
+    }
+
+    setIsFetchingWeather(true);
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        const { latitude, longitude } = position.coords;
+        const apiKey = (import.meta as any).env.VITE_OPENWEATHER_API_KEY || '010af9997538a2c61b2a9a24b267014c';
+        
+        try {
+          const response = await fetch(
+            `https://api.openweathermap.org/data/2.5/weather?lat=${latitude}&lon=${longitude}&appid=${apiKey}&units=metric`
+          );
+          const data = await response.json();
+          
+          if (data.main && data.main.temp !== undefined) {
+            setFormData(prev => ({ ...prev, ambientTemp: data.main.temp }));
+          } else {
+            alert("Không thể lấy dữ liệu thời tiết.");
+          }
+        } catch (error) {
+          console.error("Weather fetch error:", error);
+          alert("Lỗi kết nối khi lấy dữ liệu thời tiết.");
+        } finally {
+          setIsFetchingWeather(false);
+        }
+      },
+      (error) => {
+        console.error("Geolocation error:", error);
+        alert("Không thể lấy vị trí GPS. Vui lòng kiểm tra quyền truy cập vị trí.");
+        setIsFetchingWeather(false);
+      },
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
+  };
 
   useEffect(() => {
-    setFeeders(getFeedersForUnit(unit));
-  }, [unit]);
+    const loadFeeders = async () => {
+      // 1. Load from local first
+      const localFeeders = getFeedersForUnit(unit);
+      setFeeders(localFeeders);
+
+      // 2. Try to sync from sheet
+      try {
+        const remoteLibrary = await fetchFeedersFromSheet(gasUrl);
+        if (remoteLibrary && remoteLibrary[unit]) {
+          setFeeders(remoteLibrary[unit]);
+          updateFeedersForUnit(unit, remoteLibrary[unit]);
+        }
+      } catch (error) {
+        console.error('Error loading feeders in form:', error);
+      }
+    };
+    
+    loadFeeders();
+  }, [unit, gasUrl]);
 
   const handleAIAnalyze = async () => {
     if (!formData.measuredTemp || !formData.referenceTemp) {
@@ -76,7 +135,7 @@ const ThermalForm: React.FC<ThermalFormProps> = ({ unit, onSubmit, isSubmitting 
     }
     
     if (!formData.normalImage) {
-      alert("Vui lòng chọn Ảnh thường (Bắt buộc)");
+      alert("Vui lòng chọn Ảnh tham chiếu (Bắt buộc)");
       return;
     }
 
@@ -210,7 +269,23 @@ const ThermalForm: React.FC<ThermalFormProps> = ({ unit, onSubmit, isSubmitting 
               </div>
             </div>
             <div>
-              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1">Nhiệt độ MT</label>
+              <div className="flex items-center justify-between mb-1.5 ml-1">
+                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest">Môi trường</label>
+                <button 
+                  type="button"
+                  onClick={fetchWeather}
+                  disabled={isFetchingWeather}
+                  title="Lấy nhiệt độ môi trường theo GPS"
+                  className="flex items-center gap-1 text-[9px] font-black text-blue-500 uppercase hover:text-blue-600 disabled:opacity-50 transition-colors"
+                >
+                  {isFetchingWeather ? (
+                    <div className="w-3 h-3 border-2 border-blue-500/30 border-t-blue-500 rounded-full animate-spin"></div>
+                  ) : (
+                    <CloudSun className="w-3 h-3" />
+                  )}
+                  GPS
+                </button>
+              </div>
               <div className="relative">
                 <input 
                   type="number" step="0.1" required
@@ -255,7 +330,7 @@ const ThermalForm: React.FC<ThermalFormProps> = ({ unit, onSubmit, isSubmitting 
           </div>
           <div className="space-y-2">
             <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 ml-1 flex items-center gap-1">
-              Ảnh thường <span className="text-rose-500">*</span>
+              Ảnh tham chiếu <span className="text-rose-500">*</span>
             </label>
             <div className="relative h-32 bg-slate-50 border-2 border-dashed border-slate-200 rounded-2xl overflow-hidden group">
               {formData.normalImage ? (
@@ -263,7 +338,7 @@ const ThermalForm: React.FC<ThermalFormProps> = ({ unit, onSubmit, isSubmitting 
               ) : (
                 <div className="flex flex-col items-center justify-center h-full text-slate-400">
                   <svg className="w-8 h-8 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
-                  <span className="text-[10px] font-bold uppercase">Chọn ảnh thường</span>
+                  <span className="text-[10px] font-bold uppercase">Chọn ảnh tham chiếu</span>
                 </div>
               )}
               <input type="file" accept="image/*" onChange={e => handleImageChange(e, 'normal')} className="absolute inset-0 opacity-0 cursor-pointer" />
