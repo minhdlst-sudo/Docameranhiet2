@@ -7,8 +7,15 @@ export const submitThermalData = async (gasUrl: string, data: ThermalData): Prom
   }
 
   // Đảm bảo các trường số liệu được gửi đi là kiểu số
+  // Thêm dấu nháy đơn (') vào trước các trường text dễ bị GG Sheet hiểu lầm là ngày tháng (VD: 12/5)
   const payload = {
     ...data,
+    deviceLocation: `'${data.deviceLocation}`,
+    stationName: `'${data.stationName}`,
+    feeder: `'${data.feeder}`,
+    actionPlan: data.actionPlan ? `'${data.actionPlan}` : '',
+    processedDate: data.processedDate ? `'${data.processedDate}` : '',
+    postTemp: data.postTemp !== undefined ? Number(data.postTemp) : '',
     measuredTemp: Number(data.measuredTemp),
     referenceTemp: Number(data.referenceTemp),
     ambientTemp: Number(data.ambientTemp),
@@ -36,6 +43,122 @@ export const submitThermalData = async (gasUrl: string, data: ThermalData): Prom
     return { 
       success: false, 
       message: 'Không thể kết nối với máy chủ Google: ' + (error as Error).message 
+    };
+  }
+};
+
+export const fetchThermalData = async (gasUrl: string): Promise<ThermalData[]> => {
+  if (!gasUrl) {
+    throw new Error('Chưa cấu hình URL máy chủ dữ liệu.');
+  }
+  
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 15000); // 15s timeout
+  
+  try {
+    const timestamp = new Date().getTime();
+    const response = await fetch(`${gasUrl}?action=read&_t=${timestamp}`, {
+      method: 'GET',
+      redirect: 'follow',
+      signal: controller.signal
+    });
+    
+    clearTimeout(timeoutId);
+    
+    if (!response.ok) {
+      throw new Error(`Máy chủ phản hồi lỗi: ${response.status}`);
+    }
+    
+    const result = await response.json();
+    
+    // Nếu kết quả trả về có success: false
+    if (result && result.success === false) {
+      throw new Error(result.message || 'Máy chủ báo lỗi không xác định.');
+    }
+
+    let rawData: ThermalData[] = [];
+    
+    if (Array.isArray(result)) {
+      rawData = result;
+    } else if (result && Array.isArray(result.data)) {
+      rawData = result.data;
+    } else if (result && Array.isArray(result.rows)) {
+      rawData = result.rows;
+    }
+
+    // Làm sạch dữ liệu: Loại bỏ dấu nháy đơn (') ở đầu chuỗi nếu có (do chúng ta thêm vào để tránh lỗi định dạng GG Sheet)
+    return rawData.map(item => ({
+      ...item,
+      deviceLocation: item.deviceLocation?.toString().startsWith("'") ? item.deviceLocation.toString().substring(1) : item.deviceLocation,
+      stationName: item.stationName?.toString().startsWith("'") ? item.stationName.toString().substring(1) : item.stationName,
+      feeder: item.feeder?.toString().startsWith("'") ? item.feeder.toString().substring(1) : item.feeder,
+      actionPlan: item.actionPlan?.toString().startsWith("'") ? item.actionPlan.toString().substring(1) : item.actionPlan,
+      processedDate: item.processedDate?.toString().startsWith("'") ? item.processedDate.toString().substring(1) : item.processedDate,
+      date: item.date?.toString().startsWith("'") ? item.date.toString().substring(1) : item.date,
+    }));
+  } catch (error) {
+    clearTimeout(timeoutId);
+    if ((error as any).name === 'AbortError') {
+      throw new Error('Yêu cầu quá hạn (Timeout). Vui lòng kiểm tra kết nối mạng hoặc URL script.');
+    }
+    console.error('Lỗi fetchThermalData:', error);
+    throw error;
+  }
+};
+
+export const updateActionPlan = async (gasUrl: string, data: { 
+  stationName: string; 
+  deviceLocation: string; 
+  date: string; 
+  actionPlan: string;
+  processedDate?: string;
+  postTemp?: string | number;
+}): Promise<{ success: boolean; message: string }> => {
+  if (!gasUrl || gasUrl.trim() === "") {
+    return { success: false, message: 'Lỗi: Chưa cấu hình URL Google Apps Script.' };
+  }
+
+  const payload = {
+    action: 'updateActionPlan',
+    stationName: data.stationName,
+    deviceLocation: data.deviceLocation,
+    date: data.date,
+    actionPlan: data.actionPlan,
+    processedDate: data.processedDate,
+    postTemp: data.postTemp
+  };
+
+  try {
+    // Gửi yêu cầu POST với Content-Type là text/plain để tránh lỗi CORS preflight
+    // và cho phép đọc phản hồi từ Google Apps Script
+    const response = await fetch(gasUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'text/plain;charset=utf-8',
+      },
+      body: JSON.stringify(payload),
+    });
+
+    const result = await response.json();
+    
+    if (result.success) {
+      return { 
+        success: true, 
+        message: 'Kế hoạch xử lý đã được cập nhật thành công!' 
+      };
+    } else {
+      return {
+        success: false,
+        message: result.error || 'Không tìm thấy dữ liệu khớp để cập nhật. Vui lòng kiểm tra lại.'
+      };
+    }
+  } catch (error) {
+    console.error('Lỗi cập nhật kế hoạch xử lý:', error);
+    
+    // Fallback nếu có lỗi parse JSON (GAS đôi khi trả về HTML nếu lỗi)
+    return { 
+      success: false, 
+      message: 'Lỗi hệ thống: Không thể cập nhật dữ liệu. Vui lòng thử lại sau.' 
     };
   }
 };

@@ -1,0 +1,51 @@
+
+export const UNIT_FEEDERS: Record<string, string[]> = {
+  'Điện lực TP. Quảng Ngãi': ['471', '472', '473', '474', '475', '476', '477', '478', '479', '480', '481', '482'],
+  'Điện lực Sơn Tịnh': ['471', '472', '473', '474', '475'],
+  'Điện lực Bình Sơn': ['471', '472', '473', '474', '475', '476'],
+  'Điện lực Lý Sơn': ['471', '472', '473', '474', '475', '476'],
+  'Điện lực Tư Nghĩa': ['471', '472', '473', '474'],
+  'Điện lực Nghĩa Hành': ['471', '472', '473'],
+  'Điện lực Mộ Đức': ['471', '472', '473', '474'],
+  'Điện lực Đức Phổ': ['471', '472', '473', '474', '475'],
+  'Điện lực Ba Tơ': ['471', '472'],
+  'Điện lực Sơn Hà': ['471', '472', '473'],
+  'Điện lực Trà Bồng': ['471', '472'],
+  'XN Lưới điện Cao thế QN': ['171', '172', '173', '174', '271', '272', '110kV'],
+  // Kon Tum units
+  'Điện lực TP. Kon Tum': ['471', '472', '473', '474'],
+  'Điện lực Đăk Hà': ['471', '472'],
+  'Điện lực Đăk Tô': ['471', '472'],
+  'Điện lực Ngọc Hồi': ['471', '472'],
+  'Điện lực Đăk Glei': ['471', '472'],
+  'Điện lực Sa Thầy': ['471', '472'],
+  'Điện lực Kon Rẫy': ['471', '472'],
+  'Điện lực Kon Plông': ['471', '472'],
+  'Điện lực Tu Mơ Rông': ['471', '472'],
+  };
+
+export const UNIT_PASSWORDS: Record<string, string> = {
+  'Điện lực TP. Quảng Ngãi': 'tpqn@2026',
+  'Điện lực Bình Sơn': 'bs@2026',
+  'Điện lực Lý Sơn': 'ls@2026',
+  'Điện lực Sơn Tịnh': 'st@2026',
+  'Điện lực Tư Nghĩa': 'tn@2026',
+  'Điện lực Nghĩa Hành': 'nh@2026',
+  'Điện lực Mộ Đức': 'md@2026',
+  'Điện lực Đức Phổ': 'dp@2026',
+  'Điện lực Trà Bồng': 'tb@2026',
+  'Điện lực Sơn Hà': 'sh@2026',
+  'Điện lực Ba Tơ': 'bt@2026',
+  'XN Lưới điện Cao thế QN': 'ct@2026',
+  'Điện lực TP. Kon Tum': 'tpkt@2026',
+  'Điện lực Đăk Hà': 'dh@2026',
+  'Điện lực Đăk Tô': 'dt@2026',
+  'Điện lực Ngọc Hồi': 'nho@2026',
+  'Điện lực Đăk Glei': 'dg@2026',
+  'Điện lực Sa Thầy': 'sth@2026',
+  'Điện lực Kon Rẫy': 'kr@2026',
+  'Điện lực Kon Plông': 'kp@2026',
+  'Điện lực Tu Mơ Rông': 'tmr@2026',
+  };
+
+export const DEFAULT_FEEDERS = ['471', '472', '473', '474', '475', '476', '477', '478', '479'];

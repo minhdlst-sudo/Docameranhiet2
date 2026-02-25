@@ -3,10 +3,13 @@ import React, { useState } from 'react';
 import { ViewState, ThermalData } from './types';
 import Login from './components/Login';
 import ThermalForm from './components/ThermalForm';
+import DataViewer from './components/DataViewer';
+import Dashboard from './components/Dashboard';
+import ActionPlanEditor from './components/ActionPlanEditor';
+import FeederManager from './components/FeederManager';
 import { submitThermalData } from './services/gasService';
 
-// Link Script kết nối với Google Sheet
-const GAS_URL = "https://script.google.com/macros/s/AKfycbypfttBiCS2KZ0aGEG91K87fIxD4gk4DubxTQELO_GBGrrxGX3cWkw9C1UOWSSQi3_nVA/exec"; 
+const GAS_URL = "https://script.google.com/macros/s/AKfycbyUnUPbUeluEwZw6aCGbXqxpEZPDHybxH8WgnWau5IDA6S8wh4ChEq1RF8PUHiUDRl4Ig/exec"; 
 
 const App: React.FC = () => {
   const [view, setView] = useState<ViewState>(ViewState.LOGIN);
@@ -47,7 +50,7 @@ const App: React.FC = () => {
           </div>
           <div className="flex flex-col items-center gap-1">
             <h1 className="text-2xl font-black tracking-tight text-slate-900 leading-tight">
-              PCQN <span className="text-blue-600">Smart Thermal</span>
+              QNPC <span className="text-blue-600">Smart Thermal</span>
             </h1>
             <div className="flex items-center gap-2">
               <span className="bg-blue-100 text-blue-700 text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider">Chuyển đổi số</span>
@@ -87,26 +90,79 @@ const App: React.FC = () => {
                   <p className="font-bold text-slate-800 text-sm leading-none">{userUnit}</p>
                 </div>
               </div>
+              <div className="flex gap-2">
+                <button 
+                  onClick={() => setView(ViewState.LOGIN)} 
+                  className="text-[10px] font-bold text-rose-500 uppercase px-3 py-2 bg-rose-50 rounded-lg active:scale-95 transition-all"
+                >
+                  Đăng xuất
+                </button>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-4 gap-2">
               <button 
-                onClick={() => setView(ViewState.LOGIN)} 
-                className="text-[10px] font-bold text-rose-500 uppercase px-3 py-2 bg-rose-50 rounded-lg active:scale-95 transition-all"
+                onClick={() => setView(ViewState.FEEDER_MANAGER)}
+                className="bg-white p-3 rounded-2xl shadow-sm border border-slate-100 flex flex-col items-center gap-2 hover:bg-slate-50 transition-colors group"
               >
-                Đăng xuất
+                <div className="w-9 h-9 rounded-full bg-indigo-50 flex items-center justify-center text-indigo-600 group-hover:scale-110 transition-transform">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 10h16M4 14h16M4 18h16" /></svg>
+                </div>
+                <span className="text-[8px] font-black uppercase text-slate-600 text-center leading-tight">QL Xuất tuyến</span>
+              </button>
+              <button 
+                onClick={() => setView(ViewState.ACTION_PLAN_EDITOR)}
+                className="bg-white p-3 rounded-2xl shadow-sm border border-slate-100 flex flex-col items-center gap-2 hover:bg-slate-50 transition-colors group"
+              >
+                <div className="w-9 h-9 rounded-full bg-orange-50 flex items-center justify-center text-orange-600 group-hover:scale-110 transition-transform">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                </div>
+                <span className="text-[8px] font-black uppercase text-slate-600 text-center leading-tight">Kế hoạch XL</span>
+              </button>
+              <button 
+                onClick={() => setView(ViewState.DATA_VIEWER)}
+                className="bg-white p-3 rounded-2xl shadow-sm border border-slate-100 flex flex-col items-center gap-2 hover:bg-slate-50 transition-colors group"
+              >
+                <div className="w-9 h-9 rounded-full bg-emerald-50 flex items-center justify-center text-emerald-600 group-hover:scale-110 transition-transform">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                </div>
+                <span className="text-[8px] font-black uppercase text-slate-600 text-center leading-tight">Xem kết quả</span>
+              </button>
+              <button 
+                onClick={() => setView(ViewState.DASHBOARD)}
+                className="bg-white p-3 rounded-2xl shadow-sm border border-slate-100 flex flex-col items-center gap-2 hover:bg-slate-50 transition-colors group"
+              >
+                <div className="w-9 h-9 rounded-full bg-blue-50 flex items-center justify-center text-blue-600 group-hover:scale-110 transition-transform">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 3.055A9.001 9.001 0 1020.945 13H11V3.055z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M20.488 9H15V3.512A9.025 9.025 0 0120.488 9z" /></svg>
+                </div>
+                <span className="text-[8px] font-black uppercase text-slate-600 text-center leading-tight">Thống kê</span>
               </button>
             </div>
+
             <ThermalForm unit={userUnit} onSubmit={handleSubmit} isSubmitting={isSubmitting} />
           </div>
+        )}
+
+        {view === ViewState.DATA_VIEWER && (
+          <DataViewer gasUrl={GAS_URL} currentUnit={userUnit} onBack={() => setView(ViewState.FORM)} />
+        )}
+
+        {view === ViewState.DASHBOARD && (
+          <Dashboard gasUrl={GAS_URL} currentUnit={userUnit} onBack={() => setView(ViewState.FORM)} />
+        )}
+
+        {view === ViewState.ACTION_PLAN_EDITOR && (
+          <ActionPlanEditor gasUrl={GAS_URL} currentUnit={userUnit} onBack={() => setView(ViewState.FORM)} />
+        )}
+
+        {view === ViewState.FEEDER_MANAGER && (
+          <FeederManager unit={userUnit} onBack={() => setView(ViewState.FORM)} />
         )}
 
         <footer className="mt-10 text-center space-y-2">
           <p className="text-slate-400 text-[10px] font-bold tracking-widest uppercase">
             © 2026 Phòng Kỹ thuật - QNPC
           </p>
-          <div className="flex justify-center gap-4 opacity-30 grayscale">
-            {/* Logo EVNCPC or QNPC Placeholders */}
-            <div className="w-6 h-6 bg-slate-400 rounded-full"></div>
-            <div className="w-6 h-6 bg-slate-400 rounded-full"></div>
-          </div>
         </footer>
       </div>
     </div>

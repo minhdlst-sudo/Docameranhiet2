@@ -4,7 +4,7 @@ export interface ThermalData {
   stationName: string;
   deviceLocation: string;
   feeder: string; // Xuất tuyến
-  inspectionType: 'Định kỳ' | 'Đột xuất' | 'Kỹ thuật'; // Loại kiểm tra
+  inspectionType: 'Định kỳ' | 'Đột xuất' | 'Kỹ thuật' | 'Sau xử lý'; // Loại kiểm tra
   phase: 'A' | 'B' | 'C' | 'ABC' | 'N';
   measuredTemp: number;
   referenceTemp: number;
@@ -15,6 +15,10 @@ export interface ThermalData {
   conclusion: string;
   inspector: string;
   date: string;
+  // Các trường bổ sung từ Google Sheet
+  actionPlan?: string;
+  processedDate?: string;
+  postTemp?: number;
 }
 
 export interface AppConfig {
@@ -25,5 +29,9 @@ export interface AppConfig {
 export enum ViewState {
   LOGIN,
   FORM,
-  SUCCESS
+  SUCCESS,
+  FEEDER_MANAGER,
+  DATA_VIEWER,
+  DASHBOARD,
+  ACTION_PLAN_EDITOR
 }

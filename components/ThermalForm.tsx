@@ -1,7 +1,9 @@
 
 import React, { useState, useEffect } from 'react';
 import { ThermalData } from '../types';
+import { getFeedersForUnit } from '../services/feederService';
 import { getThermalAnalysis } from '../services/geminiService';
+import { Sparkles, Thermometer, MapPin, Zap } from 'lucide-react';
 
 interface ThermalFormProps {
   unit: string;
@@ -10,17 +12,17 @@ interface ThermalFormProps {
 }
 
 const ThermalForm: React.FC<ThermalFormProps> = ({ unit, onSubmit, isSubmitting }) => {
-  const getInitialState = () => ({
-    unit: unit,
+  const getInitialState = (): ThermalData => ({
+    unit,
     stationName: '',
     deviceLocation: '',
     feeder: '',
-    inspectionType: 'Định kỳ' as const,
-    phase: 'ABC' as const,
-    measuredTemp: 0,
-    referenceTemp: 0,
-    ambientTemp: 30,
-    currentLoad: 0,
+    inspectionType: 'Định kỳ',
+    phase: 'ABC',
+    measuredTemp: undefined as any,
+    referenceTemp: undefined as any,
+    ambientTemp: undefined as any,
+    currentLoad: undefined as any,
     thermalImage: null,
     normalImage: null,
     conclusion: '',
@@ -29,244 +31,300 @@ const ThermalForm: React.FC<ThermalFormProps> = ({ unit, onSubmit, isSubmitting 
   });
 
   const [formData, setFormData] = useState<Partial<ThermalData>>(getInitialState());
-  const [aiAnalyzing, setAiAnalyzing] = useState(false);
-  const [deltaT, setDeltaT] = useState<number | null>(null);
+  const [feeders, setFeeders] = useState<string[]>([]);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
 
-  // Tự động tính Delta T để người dùng thấy ngay
   useEffect(() => {
-    if (formData.measuredTemp !== undefined && formData.referenceTemp !== undefined) {
-      setDeltaT(formData.measuredTemp - formData.referenceTemp);
-    }
-  }, [formData.measuredTemp, formData.referenceTemp]);
+    setFeeders(getFeedersForUnit(unit));
+  }, [unit]);
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>, field: 'thermalImage' | 'normalImage') => {
+  const handleAIAnalyze = async () => {
+    if (!formData.measuredTemp || !formData.referenceTemp) {
+      alert("Vui lòng nhập nhiệt độ đo và nhiệt độ tham chiếu để AI đánh giá.");
+      return;
+    }
+    setIsAnalyzing(true);
+    const analysis = await getThermalAnalysis(
+      formData.measuredTemp, 
+      formData.referenceTemp, 
+      formData.currentLoad || 0
+    );
+    setFormData(prev => ({ ...prev, conclusion: analysis }));
+    setIsAnalyzing(false);
+  };
+
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>, type: 'thermal' | 'normal') => {
     const file = e.target.files?.[0];
     if (file) {
       const reader = new FileReader();
       reader.onloadend = () => {
-        setFormData(prev => ({ ...prev, [field]: reader.result as string }));
+        setFormData(prev => ({
+          ...prev,
+          [type === 'thermal' ? 'thermalImage' : 'normalImage']: reader.result as string
+        }));
       };
       reader.readAsDataURL(file);
     }
   };
 
-  const handleAnalyze = async () => {
-    if (!formData.measuredTemp || !formData.referenceTemp) return;
-    setAiAnalyzing(true);
-    const suggestion = await getThermalAnalysis(
-      formData.measuredTemp || 0, 
-      formData.referenceTemp || 0, 
-      formData.currentLoad || 0
-    );
-    setFormData(prev => ({ ...prev, conclusion: suggestion }));
-    setAiAnalyzing(false);
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (!formData.thermalImage) {
+      alert("Vui lòng chọn Ảnh nhiệt (Bắt buộc)");
+      return;
+    }
+    
+    if (!formData.normalImage) {
+      alert("Vui lòng chọn Ảnh thường (Bắt buộc)");
+      return;
+    }
+
     const success = await onSubmit(formData as ThermalData);
     if (success) {
       setFormData(getInitialState());
-      window.scrollTo({ top: 0, behavior: 'smooth' });
     }
   };
 
   return (
-    <form onSubmit={handleSubmit} className="bg-white p-6 rounded-3xl shadow-xl border border-slate-100 space-y-6">
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="md:col-span-2">
-          <label className="block text-sm font-semibold text-slate-700 mb-1">Tên Trạm / Đường dây</label>
-          <input 
-            type="text" required
-            value={formData.stationName}
-            onChange={e => setFormData({...formData, stationName: e.target.value})}
-            placeholder="VD: TBA 110kV Đông Anh"
-            className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-sm"
-          />
-        </div>
-
-        <div>
-          <label className="block text-sm font-semibold text-slate-700 mb-1">Xuất tuyến</label>
-          <input 
-            type="text" required
-            value={formData.feeder}
-            onChange={e => setFormData({...formData, feeder: e.target.value})}
-            placeholder="VD: 471, 473..."
-            className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-sm"
-          />
-        </div>
-
-        <div>
-          <label className="block text-sm font-semibold text-slate-700 mb-1">Loại kiểm tra</label>
-          <select 
-            value={formData.inspectionType}
-            onChange={e => setFormData({...formData, inspectionType: e.target.value as any})}
-            className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-sm"
-          >
-            <option value="Định kỳ">Định kỳ</option>
-            <option value="Đột xuất">Đột xuất</option>
-            <option value="Kỹ thuật">Kỹ thuật</option>
-          </select>
-        </div>
-
-        <div>
-          <label className="block text-sm font-semibold text-slate-700 mb-1">Vị trí thiết bị</label>
-          <input 
-            type="text" required
-            value={formData.deviceLocation}
-            onChange={e => setFormData({...formData, deviceLocation: e.target.value})}
-            placeholder="VD: Dao cách ly 171-1"
-            className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-sm"
-          />
-        </div>
-        <div>
-          <label className="block text-sm font-semibold text-slate-700 mb-1">Pha</label>
-          <select 
-            value={formData.phase}
-            onChange={e => setFormData({...formData, phase: e.target.value as any})}
-            className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-sm"
-          >
-            <option value="A">Pha A</option>
-            <option value="B">Pha B</option>
-            <option value="C">Pha C</option>
-            <option value="ABC">Cả 3 Pha</option>
-            <option value="N">Trung tính</option>
-          </select>
-        </div>
-      </div>
-
-      <div className={`p-4 rounded-2xl border transition-colors ${deltaT && deltaT > 15 ? 'bg-rose-50 border-rose-100' : 'bg-orange-50 border-orange-100'}`}>
-        <div className="flex justify-between items-center mb-3">
-          <h3 className={`text-sm font-bold flex items-center gap-2 ${deltaT && deltaT > 15 ? 'text-rose-800' : 'text-orange-800'}`}>
-            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z" clipRule="evenodd" /></svg>
-            Số liệu nhiệt độ (°C)
-          </h3>
-          {deltaT !== null && (
-            <span className={`text-xs font-bold px-2 py-1 rounded-lg ${deltaT > 15 ? 'bg-rose-200 text-rose-800' : 'bg-orange-200 text-orange-800'}`}>
-              ΔT: {deltaT.toFixed(1)}°C
-            </span>
-          )}
-        </div>
-        <div className="grid grid-cols-2 gap-3">
+    <form onSubmit={handleSubmit} className="bg-white p-6 rounded-3xl shadow-xl border border-slate-100 space-y-6 animate-fadeIn">
+      <div className="space-y-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
-            <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Nhiệt độ đo (t1)</label>
-            <input 
-              type="number" step="0.1" required
-              value={formData.measuredTemp || ''}
-              onChange={e => setFormData({...formData, measuredTemp: parseFloat(e.target.value)})}
-              className="w-full p-2 bg-white border border-slate-200 rounded-lg outline-none font-mono focus:ring-1 focus:ring-blue-500 text-sm"
-            />
+            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1">Xuất tuyến</label>
+            <div className="relative">
+              <select 
+                required
+                value={formData.feeder}
+                onChange={e => setFormData({...formData, feeder: e.target.value})}
+                className="w-full p-3.5 bg-slate-50 border border-slate-100 rounded-2xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none text-sm font-bold text-slate-700 appearance-none"
+              >
+                <option value="" disabled>-- Chọn xuất tuyến --</option>
+                {feeders.map(f => (
+                  <option key={f} value={f}>{f}</option>
+                ))}
+              </select>
+              <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" /></svg>
+              </div>
+            </div>
           </div>
           <div>
-            <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Tham chiếu (t2)</label>
+            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1">Tên trạm / Nhánh rẽ</label>
+            <div className="relative">
+              <input 
+                type="text" required
+                value={formData.stationName}
+                onChange={e => setFormData({...formData, stationName: e.target.value})}
+                placeholder="VD: 110kV VSI/Nhánh rẽ Tịnh An 2 "
+                className="w-full p-3.5 pl-11 bg-slate-50 border border-slate-100 rounded-2xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none text-sm font-bold text-slate-700"
+              />
+              <MapPin className="w-4 h-4 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2" />
+            </div>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+          <div>
+            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1">Loại kiểm tra</label>
+            <select 
+              required
+              value={formData.inspectionType}
+              onChange={e => setFormData({...formData, inspectionType: e.target.value as any})}
+              className="w-full p-3.5 bg-slate-50 border border-slate-100 rounded-2xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none text-sm font-bold text-slate-700"
+            >
+              <option value="Định kỳ">Định kỳ</option>
+              <option value="Đột xuất">Đột xuất</option>
+              <option value="Kỹ thuật">Kỹ thuật</option>
+              <option value="Sau xử lý">Sau xử lý</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1">Pha kiểm tra</label>
+            <select 
+              required
+              value={formData.phase}
+              onChange={e => setFormData({...formData, phase: e.target.value as any})}
+              className="w-full p-3.5 bg-slate-50 border border-slate-100 rounded-2xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none text-sm font-bold text-slate-700"
+            >
+              <option value="A">Pha A</option>
+              <option value="B">Pha B</option>
+              <option value="C">Pha C</option>
+              <option value="ABC">Cả 3 Pha (ABC)</option>
+              <option value="N">Trung tính (N)</option>
+            </select>
+          </div>
+          <div className="col-span-2 sm:col-span-1">
+            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1">Vị trí cột / Thiết bị</label>
             <input 
-              type="number" step="0.1" required
-              value={formData.referenceTemp || ''}
-              onChange={e => setFormData({...formData, referenceTemp: parseFloat(e.target.value)})}
-              className="w-full p-2 bg-white border border-slate-200 rounded-lg outline-none font-mono focus:ring-1 focus:ring-blue-500 text-sm"
+              type="text" required
+              value={formData.deviceLocation}
+              onChange={e => setFormData({...formData, deviceLocation: e.target.value})}
+              placeholder="VD: 130/25/6 / MBA T1"
+              className="w-full p-3.5 bg-slate-50 border border-slate-100 rounded-2xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none text-sm font-bold text-slate-700"
+            />
+          </div>
+        </div>
+
+        <div className="p-5 bg-blue-50/30 border-2 border-blue-400/30 rounded-[2rem] space-y-4 relative overflow-hidden">
+          <div className="flex items-center justify-between mb-1">
+            <div className="flex items-center gap-2">
+              <Thermometer className="w-4 h-4 text-blue-500" />
+              <span className="text-[10px] font-black text-blue-500 uppercase tracking-widest">Thông số đo</span>
+            </div>
+            <div className="flex items-center gap-1.5 px-3 py-1 bg-white border border-blue-100 rounded-full shadow-sm">
+              <span className="text-[9px] font-black text-slate-400 uppercase tracking-tighter">ΔT:</span>
+              <span className={`text-sm font-black leading-none ${
+                (Number(formData.measuredTemp || 0) - Number(formData.referenceTemp || 0)) < 5 ? 'text-emerald-500' :
+                (Number(formData.measuredTemp || 0) - Number(formData.referenceTemp || 0)) < 15 ? 'text-blue-500' :
+                (Number(formData.measuredTemp || 0) - Number(formData.referenceTemp || 0)) < 30 ? 'text-orange-500' : 'text-rose-500'
+              }`}>
+                {(Number(formData.measuredTemp || 0) - Number(formData.referenceTemp || 0)).toFixed(1)}°C
+              </span>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div>
+              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1">Nhiệt độ đo</label>
+              <div className="relative">
+                <input 
+                  type="number" step="0.1" required
+                  value={formData.measuredTemp ?? ''}
+                  onChange={e => setFormData({...formData, measuredTemp: e.target.value === '' ? undefined : parseFloat(e.target.value)})}
+                  className="w-full p-3.5 bg-white border border-slate-100 rounded-2xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none text-sm font-bold text-slate-700"
+                />
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-bold text-slate-400">°C</span>
+              </div>
+            </div>
+            <div>
+              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1">Tham chiếu</label>
+              <div className="relative">
+                <input 
+                  type="number" step="0.1" required
+                  value={formData.referenceTemp ?? ''}
+                  onChange={e => setFormData({...formData, referenceTemp: e.target.value === '' ? undefined : parseFloat(e.target.value)})}
+                  className="w-full p-3.5 bg-white border border-slate-100 rounded-2xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none text-sm font-bold text-slate-700"
+                />
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-bold text-slate-400">°C</span>
+              </div>
+            </div>
+            <div>
+              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1">Nhiệt độ MT</label>
+              <div className="relative">
+                <input 
+                  type="number" step="0.1" required
+                  value={formData.ambientTemp ?? ''}
+                  onChange={e => setFormData({...formData, ambientTemp: e.target.value === '' ? undefined : parseFloat(e.target.value)})}
+                  className="w-full p-3.5 bg-white border border-slate-100 rounded-2xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none text-sm font-bold text-slate-700"
+                />
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-bold text-slate-400">°C</span>
+              </div>
+            </div>
+            <div>
+              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1">Dòng tải (A)</label>
+              <div className="relative">
+                <input 
+                  type="number" step="0.1" required
+                  value={formData.currentLoad ?? ''}
+                  onChange={e => setFormData({...formData, currentLoad: e.target.value === '' ? undefined : parseFloat(e.target.value)})}
+                  className="w-full p-3.5 bg-white border border-slate-100 rounded-2xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none text-sm font-bold text-slate-700"
+                />
+                <Zap className="w-3 h-3 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2" />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 ml-1 flex items-center gap-1">
+              Ảnh nhiệt <span className="text-rose-500">*</span>
+            </label>
+            <div className="relative h-32 bg-slate-50 border-2 border-dashed border-slate-200 rounded-2xl overflow-hidden group">
+              {formData.thermalImage ? (
+                <img src={formData.thermalImage} className="w-full h-full object-cover" alt="Thermal" />
+              ) : (
+                <div className="flex flex-col items-center justify-center h-full text-slate-400">
+                  <svg className="w-8 h-8 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                  <span className="text-[10px] font-bold uppercase">Chọn ảnh nhiệt</span>
+                </div>
+              )}
+              <input type="file" accept="image/*" onChange={e => handleImageChange(e, 'thermal')} className="absolute inset-0 opacity-0 cursor-pointer" />
+            </div>
+          </div>
+          <div className="space-y-2">
+            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 ml-1 flex items-center gap-1">
+              Ảnh thường <span className="text-rose-500">*</span>
+            </label>
+            <div className="relative h-32 bg-slate-50 border-2 border-dashed border-slate-200 rounded-2xl overflow-hidden group">
+              {formData.normalImage ? (
+                <img src={formData.normalImage} className="w-full h-full object-cover" alt="Normal" />
+              ) : (
+                <div className="flex flex-col items-center justify-center h-full text-slate-400">
+                  <svg className="w-8 h-8 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                  <span className="text-[10px] font-bold uppercase">Chọn ảnh thường</span>
+                </div>
+              )}
+              <input type="file" accept="image/*" onChange={e => handleImageChange(e, 'normal')} className="absolute inset-0 opacity-0 cursor-pointer" />
+            </div>
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          <div className="flex items-center justify-between mb-1 ml-1">
+            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest">Kết luận & Kiến nghị</label>
+            <button 
+              type="button"
+              onClick={handleAIAnalyze}
+              disabled={isAnalyzing}
+              className="flex items-center gap-1.5 px-3 py-1 bg-blue-50 text-blue-600 rounded-full text-[10px] font-black uppercase tracking-wider hover:bg-blue-100 transition-all disabled:opacity-50"
+            >
+              {isAnalyzing ? (
+                <div className="w-3 h-3 border-2 border-blue-600/30 border-t-blue-600 rounded-full animate-spin"></div>
+              ) : (
+                <Sparkles className="w-3 h-3" />
+              )}
+              AI Đánh giá
+            </button>
+          </div>
+          <textarea 
+            required
+            value={formData.conclusion}
+            onChange={e => setFormData({...formData, conclusion: e.target.value})}
+            placeholder="Nhập kết luận hoặc bấm 'AI Đánh giá' để tự động phân tích..."
+            className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none text-sm font-bold text-slate-700 h-24"
+          />
+        </div>
+
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-semibold text-slate-700 mb-1">Người đo</label>
+            <input 
+              type="text" required
+              value={formData.inspector}
+              onChange={e => setFormData({...formData, inspector: e.target.value})}
+              className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-sm"
             />
           </div>
           <div>
-            <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Môi trường</label>
+            <label className="block text-sm font-semibold text-slate-700 mb-1">Ngày đo</label>
             <input 
-              type="number" step="0.1" 
-              value={formData.ambientTemp || ''}
-              onChange={e => setFormData({...formData, ambientTemp: parseFloat(e.target.value)})}
-              className="w-full p-2 bg-white border border-slate-200 rounded-lg outline-none font-mono focus:ring-1 focus:ring-blue-500 text-sm"
+              type="date" required
+              value={formData.date}
+              onChange={e => setFormData({...formData, date: e.target.value})}
+              className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-sm"
             />
           </div>
-          <div>
-            <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Phụ tải (A)</label>
-            <input 
-              type="number" step="1" 
-              value={formData.currentLoad || ''}
-              onChange={e => setFormData({...formData, currentLoad: parseFloat(e.target.value)})}
-              className="w-full p-2 bg-white border border-slate-200 rounded-lg outline-none font-mono focus:ring-1 focus:ring-blue-500 text-sm"
-            />
-          </div>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-2 gap-4">
-        <div>
-          <label className="block text-sm font-semibold text-slate-700 mb-2">Ảnh nhiệt</label>
-          <div className="relative h-28 bg-slate-100 rounded-2xl border-2 border-dashed border-slate-200 flex flex-col items-center justify-center overflow-hidden">
-            {formData.thermalImage ? (
-              <img src={formData.thermalImage} className="w-full h-full object-cover" alt="Thermal" />
-            ) : (
-              <svg className="w-8 h-8 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /></svg>
-            )}
-            <input 
-              type="file" accept="image/*" capture="environment" 
-              className="absolute inset-0 opacity-0 cursor-pointer"
-              onChange={e => handleFileChange(e, 'thermalImage')}
-            />
-          </div>
-        </div>
-        <div>
-          <label className="block text-sm font-semibold text-slate-700 mb-2">Ảnh thường</label>
-          <div className="relative h-28 bg-slate-100 rounded-2xl border-2 border-dashed border-slate-200 flex flex-col items-center justify-center overflow-hidden">
-            {formData.normalImage ? (
-              <img src={formData.normalImage} className="w-full h-full object-cover" alt="Normal" />
-            ) : (
-              <svg className="w-8 h-8 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14" /></svg>
-            )}
-            <input 
-              type="file" accept="image/*" capture="environment" 
-              className="absolute inset-0 opacity-0 cursor-pointer"
-              onChange={e => handleFileChange(e, 'normalImage')}
-            />
-          </div>
-        </div>
-      </div>
-
-      <div>
-        <div className="flex justify-between items-center mb-1">
-          <label className="block text-sm font-semibold text-slate-700">Đánh giá / Kết luận</label>
-          <button 
-            type="button" 
-            onClick={handleAnalyze}
-            disabled={aiAnalyzing || !formData.measuredTemp}
-            className="text-xs flex items-center gap-1 text-blue-600 font-bold disabled:opacity-50"
-          >
-            {aiAnalyzing ? 'Đang phân tích...' : '✨ AI Phân tích'}
-          </button>
-        </div>
-        <textarea 
-          value={formData.conclusion}
-          onChange={e => setFormData({...formData, conclusion: e.target.value})}
-          className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-sm h-20"
-          placeholder="Nhập kết luận đánh giá..."
-        ></textarea>
-      </div>
-
-      <div className="grid grid-cols-2 gap-4">
-        <div>
-          <label className="block text-sm font-semibold text-slate-700 mb-1">Người đo</label>
-          <input 
-            type="text" required
-            value={formData.inspector}
-            onChange={e => setFormData({...formData, inspector: e.target.value})}
-            className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-sm"
-          />
-        </div>
-        <div>
-          <label className="block text-sm font-semibold text-slate-700 mb-1">Ngày đo</label>
-          <input 
-            type="date" required
-            value={formData.date}
-            onChange={e => setFormData({...formData, date: e.target.value})}
-            className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-sm"
-          />
         </div>
       </div>
 
       <button 
         type="submit" 
         disabled={isSubmitting}
-        className="w-full bg-slate-900 text-white p-4 rounded-xl font-bold hover:bg-slate-800 disabled:opacity-50 shadow-lg flex items-center justify-center gap-2"
+        className="w-full p-4 bg-blue-600 text-white rounded-2xl font-black uppercase tracking-widest shadow-lg shadow-blue-200 hover:bg-blue-700 disabled:opacity-50 transition-all active:scale-[0.98]"
       >
-        {isSubmitting ? 'Đang gửi...' : 'Gửi kết quả đo'}
+        {isSubmitting ? 'Đang đồng bộ...' : 'Gửi kết quả'}
       </button>
     </form>
   );

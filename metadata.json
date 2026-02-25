@@ -1,6 +1,6 @@
 {
-  "name": "PCQN Smart Thermal",
-  "description": "Ứng dụng chuyển đổi số thu thập dữ liệu camera nhiệt tại hiện trường PC Quảng Ngãi.",
+  "name": "QNPC Smart Thermal",
+  "description": "Sổ tay Camera nhiệt thông minh - QNPC",
   "requestFramePermissions": [
     "camera"
   ]

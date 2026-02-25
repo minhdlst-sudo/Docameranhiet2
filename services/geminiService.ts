@@ -3,7 +3,7 @@ import { GoogleGenAI } from "@google/genai";
 
 export const getThermalAnalysis = async (temp: number, refTemp: number, load: number) => {
   // Lấy API Key từ biến môi trường (được Netlify hoặc môi trường build inject vào)
-  const apiKey = process.env.GEMINI_API_KEY;
+  const apiKey = process.env.API_KEY;
   
   if (!apiKey) {
     console.error("API_KEY is missing in process.env");
@@ -18,10 +18,10 @@ export const getThermalAnalysis = async (temp: number, refTemp: number, load: nu
     Dữ liệu đo: t1=${temp}°C (thiết bị), t2=${refTemp}°C (tham chiếu), ΔT=${deltaT.toFixed(1)}°C, phụ tải=${load}A.
     Dựa trên quy trình kỹ thuật:
     - Nếu ΔT < 5°C: Bình thường.
-    - Nếu 5°C <= ΔT < 15°C: Theo dõi (Chớm phát nóng).
-    - Nếu 15°C <= ΔT < 35°C: Nguy hiểm (Phát nóng rõ rệt).
-    - Nếu ΔT >= 35°C: Đặc biệt nguy hiểm.
-    Hãy đưa ra kết luận cực ngắn gọn (dưới 15 từ) và hướng xử lý nhanh.`;
+    - Nếu 5°C <= ΔT < 15°C: Theo dõi.
+    - Nếu 15°C <= ΔT < 30°C: Nghiêm trọng (Cần lập kế hoạch xử lý).
+    - Nếu ΔT >= 30°C: Nguy cấp (Cần xử lý ngay).
+    Hãy đưa ra kết luận cực ngắn gọn (dưới 15 từ), bắt đầu bằng phân loại (Bình thường/Theo dõi/Nghiêm trọng/Nguy cấp) và hướng xử lý nhanh.`;
 
   try {
     const response = await ai.models.generateContent({
