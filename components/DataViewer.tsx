@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { ThermalData } from '../types';
 import { fetchThermalData } from '../services/gasService';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Download, FileSpreadsheet } from 'lucide-react';
 
 interface DataViewerProps {
   gasUrl: string;
@@ -111,6 +111,51 @@ const DataViewer: React.FC<DataViewerProps> = ({ gasUrl, currentUnit, onBack }) 
     }
   }, [gasUrl, currentUnit]);
 
+  const handleDownloadCSV = () => {
+    if (filteredData.length === 0) return;
+
+    // Tiêu đề cột
+    const headers = [
+      "Đơn vị", "Trạm/Nhánh rẽ", "Xuất tuyến", "Loại kiểm tra", "Vị trí cột", 
+      "Pha", "Nhiệt độ đo (°C)", "Tham chiếu (°C)", "Nhiệt độ môi trường (°C)", 
+      "Dòng điện phụ tải (A)", "Kết luận", "Người kiểm tra", "Ngày đo", 
+      "Kế hoạch xử lý", "Ngày đã xử lý", "Nhiệt độ sau xử lý"
+    ];
+
+    // Chuyển dữ liệu thành các dòng CSV
+    const csvRows = filteredData.map(item => [
+      `"${item.unit}"`,
+      `"${item.stationName}"`,
+      `"${item.feeder}"`,
+      `"${item.inspectionType}"`,
+      `"${item.deviceLocation}"`,
+      `"${item.phase}"`,
+      item.measuredTemp,
+      item.referenceTemp,
+      item.ambientTemp,
+      item.currentLoad,
+      `"${item.conclusion.replace(/"/g, '""')}"`,
+      `"${item.inspector}"`,
+      `"${new Date(item.date).toLocaleDateString('vi-VN')}"`,
+      `"${(item.actionPlan || "").replace(/"/g, '""')}"`,
+      `"${item.processedDate || ""}"`,
+      item.postTemp || ""
+    ].join(","));
+
+    // Kết hợp tiêu đề và dữ liệu (thêm BOM để hiển thị đúng tiếng Việt trong Excel)
+    const csvContent = "\uFEFF" + [headers.join(","), ...csvRows].join("\n");
+    
+    // Tạo blob và tải về
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `Ket_qua_nhiet_${currentUnit.replace(/\s+/g, '_')}_${new Date().getTime()}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   useEffect(() => {
     loadData();
   }, [loadData]);
@@ -173,13 +218,25 @@ const DataViewer: React.FC<DataViewerProps> = ({ gasUrl, currentUnit, onBack }) 
             </svg>
           </button>
         </div>
-        <button 
-          onClick={onBack} 
-          className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 text-blue-600 rounded-xl text-[10px] sm:text-xs font-black uppercase tracking-wider hover:bg-blue-100 transition-all flex-shrink-0"
-        >
-          <ArrowLeft className="w-3 h-3" />
-          <span>Quay lại</span>
-        </button>
+        <div className="flex items-center gap-2 flex-shrink-0">
+          {!loading && filteredData.length > 0 && (
+            <button 
+              onClick={handleDownloadCSV}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 text-emerald-600 rounded-xl text-[10px] sm:text-xs font-black uppercase tracking-wider hover:bg-emerald-100 transition-all"
+              title="Tải về file CSV"
+            >
+              <FileSpreadsheet className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Tải dữ liệu</span>
+            </button>
+          )}
+          <button 
+            onClick={onBack} 
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 text-blue-600 rounded-xl text-[10px] sm:text-xs font-black uppercase tracking-wider hover:bg-blue-100 transition-all"
+          >
+            <ArrowLeft className="w-3 h-3" />
+            <span>Quay lại</span>
+          </button>
+        </div>
       </div>
 
       <div className="space-y-3 mb-6">
