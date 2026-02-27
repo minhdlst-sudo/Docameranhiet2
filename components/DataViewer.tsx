@@ -141,31 +141,51 @@ const DataViewer: React.FC<DataViewerProps> = ({ gasUrl, currentUnit, onBack }) 
       "Kế hoạch xử lý", "Ngày đã xử lý", "Nhiệt độ sau xử lý"
     ];
 
-    // Chuyển dữ liệu thành các dòng CSV
+    // Hàm thoát các ký tự đặc biệt và ép kiểu text cho Excel
+    const escapeCSV = (val: any, forceText = false) => {
+      if (val === null || val === undefined) return '""';
+      let str = val.toString();
+      str = str.replace(/"/g, '""');
+      // Nếu forceText = true, sử dụng định dạng ="giá_trị" để Excel không tự ý chuyển sang ngày tháng
+      if (forceText) {
+        return `="${str}"`;
+      }
+      return `"${str}"`;
+    };
+
+    // Chuyển dữ liệu thành các dòng (Sử dụng Tab làm phân cách để Excel nhận diện tốt nhất với UTF-16LE)
     const csvRows = filteredData.map(item => [
-      `="${item.unit}"`,
-      `="${item.stationName}"`,
-      `="${item.feeder}"`,
-      `="${item.inspectionType}"`,
-      `="${item.deviceLocation}"`,
-      `="${item.phase}"`,
+      escapeCSV(item.unit, true),
+      escapeCSV(item.stationName, true),
+      escapeCSV(item.feeder, true),
+      escapeCSV(item.inspectionType, true),
+      escapeCSV(item.deviceLocation, true),
+      escapeCSV(item.phase, true),
       item.measuredTemp,
       item.referenceTemp,
       item.ambientTemp,
       item.currentLoad,
-      `="${item.conclusion.replace(/"/g, '""')}"`,
-      `="${item.inspector}"`,
-      `"${new Date(item.date).toLocaleDateString('vi-VN')}"`,
-      `="${(item.actionPlan || "").replace(/"/g, '""')}"`,
-      `="${item.processedDate || ""}"`,
+      escapeCSV(item.conclusion, true),
+      escapeCSV(item.inspector, true),
+      escapeCSV(formatDate(item.date), true),
+      escapeCSV(item.actionPlan || "", true),
+      escapeCSV(formatDate(item.processedDate), true),
       item.postTemp || ""
-    ].join(","));
+    ].join("\t"));
 
-    // Kết hợp tiêu đề và dữ liệu (thêm BOM để hiển thị đúng tiếng Việt trong Excel)
-    const csvContent = "\uFEFF" + [headers.join(","), ...csvRows].join("\n");
+    // Kết hợp tiêu đề và dữ liệu
+    const csvContent = headers.map(h => escapeCSV(h)).join("\t") + "\n" + csvRows.join("\n");
     
-    // Tạo blob và tải về
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    // GIẢI PHÁP TỐI ƯU CHO EXCEL: Sử dụng UTF-16LE và Tab làm phân cách
+    // Đây là định dạng mà Excel hỗ trợ tốt nhất cho tiếng Việt có dấu
+    const bom = new Uint8Array([0xFF, 0xFE]);
+    const buffer = new ArrayBuffer(csvContent.length * 2);
+    const view = new Uint16Array(buffer);
+    for (let i = 0; i < csvContent.length; i++) {
+      view[i] = csvContent.charCodeAt(i);
+    }
+    const blob = new Blob([bom, buffer], { type: 'text/csv;charset=utf-16le;' });
+    
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.setAttribute("href", url);
@@ -455,8 +475,8 @@ const DataViewer: React.FC<DataViewerProps> = ({ gasUrl, currentUnit, onBack }) 
                         </div>
                         <div>
                           <p className="text-[9px] text-slate-400 uppercase font-bold">Ngày đã xử lý:</p>
-                          <p className={`text-xs font-semibold ${item.processedDate ? 'text-slate-700' : 'text-slate-400 italic'}`}>
-                            {formatDate(item.processedDate)}
+                          <p className={`text-xs font-black ${item.processedDate ? 'text-blue-600' : 'text-slate-400 italic'}`}>
+                            {item.processedDate ? formatDate(item.processedDate) : 'Chưa cập nhật'}
                           </p>
                         </div>
                         <div>
