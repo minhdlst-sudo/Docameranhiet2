@@ -184,27 +184,27 @@ const DataViewer: React.FC<DataViewerProps> = ({ gasUrl, currentUnit, onBack }) 
     for (let i = 0; i < csvContent.length; i++) {
       view[i] = csvContent.charCodeAt(i);
     }
-    const blob = new Blob([bom, buffer], { type: 'application/octet-stream' });
+    const blob = new Blob([bom, buffer], { type: 'text/csv;charset=utf-16le' });
     
-    const url = URL.createObjectURL(blob);
+    // SỬA LỖI DI ĐỘNG: Chuyển về dạng đồng bộ (Synchronous)
+    // Trình duyệt di động thường chặn link.click() nếu nó nằm trong callback bất đồng bộ (như FileReader)
+    const url = window.URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
     link.setAttribute('download', `Ket_qua_nhiet_${currentUnit.replace(/\s+/g, '_')}_${new Date().getTime()}.csv`);
     
-    // Đảm bảo phần tử tồn tại trong DOM và có thể tương tác trên di động
-    link.style.visibility = 'hidden';
-    link.style.position = 'absolute';
-    link.style.bottom = '0px';
-    link.style.left = '0px';
-    
+    // Đảm bảo link tồn tại trong DOM để trình duyệt di động xử lý tốt hơn
+    link.style.display = 'none';
     document.body.appendChild(link);
+    
+    // Kích hoạt tải xuống
     link.click();
     
-    // Tăng thời gian chờ giải phóng bộ nhớ trên di động
+    // Dọn dẹp sau khi trình duyệt đã nhận lệnh
     setTimeout(() => {
       document.body.removeChild(link);
       window.URL.revokeObjectURL(url);
-    }, 1000);
+    }, 500);
   };
 
   useEffect(() => {
