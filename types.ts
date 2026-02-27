@@ -15,6 +15,7 @@ export interface ThermalData {
   conclusion: string;
   inspector: string;
   date: string;
+  timestamp?: string; // Thời điểm cập nhật (Cột A)
   // Các trường bổ sung từ Google Sheet
   actionPlan?: string;
   processedDate?: string;

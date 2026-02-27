@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { ThermalData } from '../types';
 import { fetchThermalData, updateActionPlan } from '../services/gasService';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { RefreshCw, ArrowLeft } from 'lucide-react';
 
 interface ActionPlanEditorProps {
@@ -53,12 +53,13 @@ const ActionPlanEditor: React.FC<ActionPlanEditorProps> = ({ gasUrl, currentUnit
         item.date && 
         !item.date.includes('drive.google.com')
       );
-      // Lọc dữ liệu theo đơn vị đang đăng nhập và mức cảnh báo (Chỉ hiện Nghiêm trọng & Nguy cấp: Delta T >= 15)
+      // Lọc dữ liệu theo đơn vị đang đăng nhập và mức cảnh báo (Chỉ hiện Nghiêm trọng & Nguy cấp: Delta T >= 15 HOẶC đã có kế hoạch)
       const unitData = validData.filter(item => {
         const isCorrectUnit = item.unit === currentUnit;
         const diff = Number(item.measuredTemp) - Number(item.referenceTemp);
         const isSeriousOrEmergency = diff >= 15;
-        return isCorrectUnit && isSeriousOrEmergency;
+        const hasActionPlan = !!(item.actionPlan || item.processedDate || item.postTemp);
+        return isCorrectUnit && (isSeriousOrEmergency || hasActionPlan);
       });
       
       // Sắp xếp theo ngày mới nhất
@@ -103,12 +104,14 @@ const ActionPlanEditor: React.FC<ActionPlanEditorProps> = ({ gasUrl, currentUnit
         : item
       ));
       
-      // Không đóng ngay lập tức để người dùng có thể chỉnh sửa tiếp
+      // Tự động quay lại danh sách sau 2 giây
       setTimeout(() => {
         setSuccessMessage(null);
-      }, 3000);
+        setSelectedItem(null);
+      }, 2000);
     } else {
-      alert(result.message);
+      setError(result.message);
+      setTimeout(() => setError(null), 5000);
     }
     setIsSubmitting(false);
   };
@@ -228,6 +231,16 @@ const ActionPlanEditor: React.FC<ActionPlanEditorProps> = ({ gasUrl, currentUnit
                 {successMessage}
               </motion.div>
             )}
+
+            {error && (
+              <motion.div 
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="p-3 bg-rose-50 text-rose-600 text-center rounded-xl text-xs font-bold border border-rose-100"
+              >
+                {error}
+              </motion.div>
+            )}
           </motion.div>
         ) : (
           <motion.div 
@@ -285,7 +298,7 @@ const ActionPlanEditor: React.FC<ActionPlanEditorProps> = ({ gasUrl, currentUnit
                         {item.processedDate ? (
                           <span className="text-[9px] font-black text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full flex items-center gap-1">
                             <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg>
-                            Đã xử lý
+                            Xử lý: {formatDate(item.processedDate)}
                           </span>
                         ) : item.actionPlan ? (
                           <span className="text-[9px] font-black text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full flex items-center gap-1">

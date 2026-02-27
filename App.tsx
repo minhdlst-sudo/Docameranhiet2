@@ -7,14 +7,18 @@ import DataViewer from './components/DataViewer';
 import Dashboard from './components/Dashboard';
 import ActionPlanEditor from './components/ActionPlanEditor';
 import FeederManager from './components/FeederManager';
+import UserGuide from './components/UserGuide';
 import { submitThermalData, fetchThermalData } from './services/gasService';
+import { AnimatePresence } from 'framer-motion';
 
-const GAS_URL = (import.meta as any).env.VITE_GAS_URL || "https://script.google.com/macros/s/AKfycbyOyJpnPbCDrtr6HfVqR83oMRPDxRzfT0f37ZxY4t9oM-uZNEtt2IL2qo9Hw4HOGtCQ1A/exec"; 
+const GAS_URL = "https://script.google.com/macros/s/AKfycbyIhopd2q04JIIGOgu-4-d9qaArEbZnWW5luk6SNbS-3lOPVAtqAvzw0shkn-3lwiYbGA/exec"; 
+const FEEDER_GAS_URL = (import.meta as any).env.VITE_FEEDER_GAS_URL || "https://script.google.com/macros/s/AKfycbxsVqcswIjzvOl5FO6kmpAZCjMa6LKj-wwj_xs8hRXVIcaU24QR3ZBUdxxXGV6-WQRBKQ/exec";
 
 const App: React.FC = () => {
   const [view, setView] = useState<ViewState>(ViewState.LOGIN);
   const [userUnit, setUserUnit] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showGuide, setShowGuide] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error' | 'warning', text: string } | null>(null);
 
   const handleLogin = (unit: string) => {
@@ -58,6 +62,13 @@ const App: React.FC = () => {
               <p className="text-slate-500 text-[10px] font-medium uppercase tracking-tight">Sổ tay Camera nhiệt thông minh</p>
             </div>
           </div>
+          <button 
+            onClick={() => setShowGuide(true)}
+            className="absolute top-0 right-0 p-2 text-slate-400 hover:text-blue-600 transition-colors"
+            title="Hướng dẫn sử dụng"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+          </button>
         </header>
 
         {message && (
@@ -139,7 +150,13 @@ const App: React.FC = () => {
               </button>
             </div>
 
-            <ThermalForm unit={userUnit} gasUrl={GAS_URL} onSubmit={handleSubmit} isSubmitting={isSubmitting} />
+            <ThermalForm 
+              unit={userUnit} 
+              gasUrl={GAS_URL} 
+              feederGasUrl={FEEDER_GAS_URL}
+              onSubmit={handleSubmit} 
+              isSubmitting={isSubmitting} 
+            />
           </div>
         )}
 
@@ -156,8 +173,12 @@ const App: React.FC = () => {
         )}
 
         {view === ViewState.FEEDER_MANAGER && (
-          <FeederManager unit={userUnit} gasUrl={GAS_URL} onBack={() => setView(ViewState.FORM)} />
+          <FeederManager unit={userUnit} gasUrl={FEEDER_GAS_URL} onBack={() => setView(ViewState.FORM)} />
         )}
+
+        <AnimatePresence>
+          {showGuide && <UserGuide onClose={() => setShowGuide(false)} />}
+        </AnimatePresence>
 
         <footer className="mt-10 text-center space-y-2">
           <p className="text-slate-400 text-[10px] font-bold tracking-widest uppercase">

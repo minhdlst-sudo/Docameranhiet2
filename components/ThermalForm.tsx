@@ -4,16 +4,17 @@ import { ThermalData } from '../types';
 import { getFeedersForUnit, updateFeedersForUnit } from '../services/feederService';
 import { fetchFeedersFromSheet } from '../services/gasService';
 import { getThermalAnalysis } from '../services/geminiService';
-import { Sparkles, Thermometer, MapPin, Zap, CloudSun } from 'lucide-react';
+import { Sparkles, Thermometer, MapPin, Zap, CloudSun, RefreshCw } from 'lucide-react';
 
 interface ThermalFormProps {
   unit: string;
   gasUrl: string;
+  feederGasUrl: string;
   onSubmit: (data: ThermalData) => Promise<boolean>;
   isSubmitting: boolean;
 }
 
-const ThermalForm: React.FC<ThermalFormProps> = ({ unit, gasUrl, onSubmit, isSubmitting }) => {
+const ThermalForm: React.FC<ThermalFormProps> = ({ unit, gasUrl, feederGasUrl, onSubmit, isSubmitting }) => {
   const getInitialState = (): ThermalData => ({
     unit,
     stationName: '',
@@ -36,6 +37,7 @@ const ThermalForm: React.FC<ThermalFormProps> = ({ unit, gasUrl, onSubmit, isSub
   const [feeders, setFeeders] = useState<string[]>([]);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isFetchingWeather, setIsFetchingWeather] = useState(false);
+  const [isLoadingFeeders, setIsLoadingFeeders] = useState(false);
 
   const fetchWeather = () => {
     if (!navigator.geolocation) {
@@ -47,55 +49,106 @@ const ThermalForm: React.FC<ThermalFormProps> = ({ unit, gasUrl, onSubmit, isSub
     navigator.geolocation.getCurrentPosition(
       async (position) => {
         const { latitude, longitude } = position.coords;
-        const apiKey = (import.meta as any).env.VITE_OPENWEATHER_API_KEY || '010af9997538a2c61b2a9a24b267014c';
+        console.log(`GPS Coordinates: ${latitude}, ${longitude}`);
         
         try {
-          const response = await fetch(
+          // Nguồn 1: Open-Meteo (Miễn phí, không cần key, cực kỳ ổn định)
+          try {
+            const meteoRes = await fetch(
+              `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current_weather=true`
+            );
+            if (meteoRes.ok) {
+              const meteoData = await meteoRes.json();
+              if (meteoData.current_weather && meteoData.current_weather.temperature !== undefined) {
+                setFormData(prev => ({ ...prev, ambientTemp: meteoData.current_weather.temperature }));
+                setIsFetchingWeather(false);
+                return;
+              }
+            }
+          } catch (e) {
+            console.warn("Open-Meteo failed, trying wttr.in...", e);
+          }
+
+          // Nguồn 2: wttr.in
+          try {
+            const wttrRes = await fetch(`https://wttr.in/${latitude},${longitude}?format=j1`);
+            if (wttrRes.ok) {
+              const wttrData = await wttrRes.json();
+              const temp = wttrData.current_condition?.[0]?.temp_C;
+              if (temp !== undefined) {
+                setFormData(prev => ({ ...prev, ambientTemp: parseFloat(temp) }));
+                setIsFetchingWeather(false);
+                return;
+              }
+            }
+          } catch (e) {
+            console.warn("wttr.in failed, trying OpenWeatherMap...", e);
+          }
+
+          // Nguồn 3: OpenWeatherMap (Dự phòng cuối)
+          const apiKey = (import.meta as any).env.VITE_OPENWEATHER_API_KEY || '010af9997538a2c61b2a9a24b267014c';
+          const owmRes = await fetch(
             `https://api.openweathermap.org/data/2.5/weather?lat=${latitude}&lon=${longitude}&appid=${apiKey}&units=metric`
           );
-          const data = await response.json();
           
-          if (data.main && data.main.temp !== undefined) {
-            setFormData(prev => ({ ...prev, ambientTemp: data.main.temp }));
-          } else {
-            alert("Không thể lấy dữ liệu thời tiết.");
+          if (owmRes.ok) {
+            const owmData = await owmRes.json();
+            if (owmData.main && owmData.main.temp !== undefined) {
+              setFormData(prev => ({ ...prev, ambientTemp: owmData.main.temp }));
+              setIsFetchingWeather(false);
+              return;
+            }
           }
+          
+          alert("Không thể lấy dữ liệu thời tiết từ các nguồn trực tuyến. Vui lòng nhập thủ công.");
         } catch (error) {
           console.error("Weather fetch error:", error);
-          alert("Lỗi kết nối khi lấy dữ liệu thời tiết.");
+          alert("Lỗi kết nối khi lấy dữ liệu thời tiết. Vui lòng kiểm tra mạng.");
         } finally {
           setIsFetchingWeather(false);
         }
       },
       (error) => {
         console.error("Geolocation error:", error);
-        alert("Không thể lấy vị trí GPS. Vui lòng kiểm tra quyền truy cập vị trí.");
+        let msg = "Không thể lấy vị trí GPS.";
+        if (error.code === 1) msg = "Vui lòng cấp quyền truy cập vị trí (GPS) cho ứng dụng trong cài đặt trình duyệt.";
+        else if (error.code === 3) msg = "Yêu cầu định vị quá hạn (có thể do tín hiệu yếu). Vui lòng thử lại.";
+        alert(msg);
         setIsFetchingWeather(false);
       },
-      { enableHighAccuracy: true, timeout: 10000 }
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
     );
   };
 
-  useEffect(() => {
-    const loadFeeders = async () => {
-      // 1. Load from local first
+  const loadFeeders = async (forceSync = false) => {
+    setIsLoadingFeeders(true);
+    // 1. Load from local first (cache) if not forcing sync
+    if (!forceSync) {
       const localFeeders = getFeedersForUnit(unit);
-      setFeeders(localFeeders);
-
-      // 2. Try to sync from sheet
-      try {
-        const remoteLibrary = await fetchFeedersFromSheet(gasUrl);
-        if (remoteLibrary && remoteLibrary[unit]) {
-          setFeeders(remoteLibrary[unit]);
-          updateFeedersForUnit(unit, remoteLibrary[unit]);
-        }
-      } catch (error) {
-        console.error('Error loading feeders in form:', error);
+      if (localFeeders.length > 0) {
+        setFeeders(localFeeders);
       }
-    };
-    
+    }
+
+    // 2. Try to sync from sheet
+    try {
+      const remoteLibrary = await fetchFeedersFromSheet(feederGasUrl);
+      if (remoteLibrary) {
+        const remoteFeeders = Array.from(new Set(remoteLibrary[unit] || []));
+        setFeeders(remoteFeeders);
+        updateFeedersForUnit(unit, remoteFeeders);
+      }
+    } catch (error) {
+      console.error('Error loading feeders in form:', error);
+      if (forceSync) alert('Lỗi đồng bộ dữ liệu từ Google Sheet');
+    } finally {
+      setIsLoadingFeeders(false);
+    }
+  };
+
+  useEffect(() => {
     loadFeeders();
-  }, [unit, gasUrl]);
+  }, [unit, feederGasUrl]);
 
   const handleAIAnalyze = async () => {
     if (!formData.measuredTemp || !formData.referenceTemp) {
@@ -150,7 +203,18 @@ const ThermalForm: React.FC<ThermalFormProps> = ({ unit, gasUrl, onSubmit, isSub
       <div className="space-y-4">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
-            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1">Xuất tuyến</label>
+            <div className="flex items-center justify-between mb-1.5 ml-1">
+              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest">Xuất tuyến</label>
+              <button 
+                type="button"
+                onClick={() => loadFeeders(true)}
+                disabled={isLoadingFeeders}
+                className="text-[9px] font-black text-blue-600 uppercase flex items-center gap-1 hover:text-blue-700 transition-colors disabled:opacity-50"
+              >
+                <RefreshCw className={`w-2.5 h-2.5 ${isLoadingFeeders ? 'animate-spin' : ''}`} />
+                Đồng bộ
+              </button>
+            </div>
             <div className="relative">
               <select 
                 required
@@ -158,9 +222,11 @@ const ThermalForm: React.FC<ThermalFormProps> = ({ unit, gasUrl, onSubmit, isSub
                 onChange={e => setFormData({...formData, feeder: e.target.value})}
                 className="w-full p-3.5 bg-slate-50 border border-slate-100 rounded-2xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none text-sm font-bold text-slate-700 appearance-none"
               >
-                <option value="" disabled>-- Chọn xuất tuyến --</option>
-                {feeders.map(f => (
-                  <option key={f} value={f}>{f}</option>
+                <option value="" disabled>
+                  {isLoadingFeeders && feeders.length === 0 ? '-- Đang đồng bộ... --' : '-- Chọn xuất tuyến --'}
+                </option>
+                {feeders.map((f, idx) => (
+                  <option key={`${f}-${idx}`} value={f}>{f}</option>
                 ))}
               </select>
               <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">

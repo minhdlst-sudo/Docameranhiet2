@@ -5,7 +5,8 @@
 }
 
 body {
-  @apply bg-slate-50 text-slate-900;
+  background-color: #f8fafc; /* bg-slate-50 */
+  color: #0f172a; /* text-slate-900 */
 }
 
 .custom-scrollbar::-webkit-scrollbar {
@@ -13,11 +14,12 @@ body {
 }
 
 .custom-scrollbar::-webkit-scrollbar-track {
-  @apply bg-transparent;
+  background-color: transparent;
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb {
-  @apply bg-slate-200 rounded-full;
+  background-color: #e2e8f0; /* bg-slate-200 */
+  border-radius: 9999px;
 }
 
 @keyframes fadeIn {

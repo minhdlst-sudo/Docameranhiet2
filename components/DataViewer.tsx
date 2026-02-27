@@ -46,6 +46,25 @@ const DataViewer: React.FC<DataViewerProps> = ({ gasUrl, currentUnit, onBack }) 
     return () => clearTimeout(timer);
   }, [selectedImage, imageLoading, serverMode]);
 
+  // Hàm định dạng ngày tháng tiếng Việt
+  const formatDate = (dateStr: string | undefined) => {
+    if (!dateStr) return 'N/A';
+    const date = new Date(dateStr);
+    if (isNaN(date.getTime())) {
+      // Thử parse nếu định dạng là DD/MM/YYYY
+      const parts = dateStr.split('/');
+      if (parts.length === 3) {
+        const d = parseInt(parts[0]);
+        const m = parseInt(parts[1]) - 1;
+        const y = parseInt(parts[2]);
+        const newDate = new Date(y, m, d);
+        if (!isNaN(newDate.getTime())) return newDate.toLocaleDateString('vi-VN');
+      }
+      return dateStr;
+    }
+    return date.toLocaleDateString('vi-VN');
+  };
+
   // Hàm lấy ID Google Drive
   const getDriveId = (url: string | null) => {
     if (!url) return null;
@@ -323,6 +342,11 @@ const DataViewer: React.FC<DataViewerProps> = ({ gasUrl, currentUnit, onBack }) 
                         {label.text}
                       </span>
                     </div>
+                    {item.timestamp && (
+                      <p className="text-[8px] font-bold text-slate-400 uppercase tracking-tighter mb-1">
+                        Cập nhật: {item.timestamp.toString()}
+                      </p>
+                    )}
                     <div className="space-y-0.5">
                       <p className="text-[10px] text-slate-500 font-bold uppercase">
                         <span className="text-slate-400">Trạm/Nhánh rẽ:</span> {item.stationName}
@@ -336,7 +360,7 @@ const DataViewer: React.FC<DataViewerProps> = ({ gasUrl, currentUnit, onBack }) 
                     </div>
                   </div>
                   <span className="text-[10px] bg-white border border-slate-200 text-slate-500 px-2 py-0.5 rounded-full font-bold shadow-sm whitespace-nowrap">
-                    {new Date(item.date).toLocaleDateString('vi-VN')}
+                    {formatDate(item.date)}
                   </span>
                 </div>
                 
@@ -419,7 +443,7 @@ const DataViewer: React.FC<DataViewerProps> = ({ gasUrl, currentUnit, onBack }) 
                     </div>
                   </div>
 
-                  {(level === 'Serious' || level === 'Emergency') && (
+                  {(level === 'Serious' || level === 'Emergency' || item.actionPlan || item.processedDate || item.postTemp) && (
                     <div className="pt-3 border-t border-blue-50 bg-blue-50/30 rounded-xl p-3 w-full">
                       <p className="text-[10px] font-black text-blue-500 uppercase tracking-widest mb-2">Thông tin xử lý khiếm khuyết</p>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -432,7 +456,7 @@ const DataViewer: React.FC<DataViewerProps> = ({ gasUrl, currentUnit, onBack }) 
                         <div>
                           <p className="text-[9px] text-slate-400 uppercase font-bold">Ngày đã xử lý:</p>
                           <p className={`text-xs font-semibold ${item.processedDate ? 'text-slate-700' : 'text-slate-400 italic'}`}>
-                            {item.processedDate || 'Chưa cập nhật'}
+                            {formatDate(item.processedDate)}
                           </p>
                         </div>
                         <div>

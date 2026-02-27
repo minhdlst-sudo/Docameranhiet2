@@ -12,7 +12,9 @@ export const getFeederLibrary = (): Record<string, string[]> => {
       console.error('Error parsing feeder library', e);
     }
   }
-  return JSON.parse(JSON.stringify(UNIT_FEEDERS));
+  // Trả về đối tượng rỗng thay vì UNIT_FEEDERS mặc định
+  // để đảm bảo dữ liệu luôn được đồng bộ từ Sheet
+  return {};
 };
 
 export const saveFeederLibrary = (library: Record<string, string[]>) => {
@@ -24,7 +26,9 @@ export const getFeedersForUnit = (unit: string): string[] => {
   if (Object.prototype.hasOwnProperty.call(library, unit)) {
     return [...library[unit]];
   }
-  return [...(UNIT_FEEDERS[unit] || DEFAULT_FEEDERS)];
+  // Trả về mảng rỗng nếu chưa có dữ liệu đồng bộ từ Sheet cho đơn vị này
+  // Điều này buộc ứng dụng phải load từ Sheet để đảm bảo tính nhất quán
+  return [];
 };
 
 export const updateFeedersForUnit = (unit: string, feeders: string[]) => {

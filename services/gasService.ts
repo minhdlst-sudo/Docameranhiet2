@@ -9,6 +9,7 @@ export const submitThermalData = async (gasUrl: string, data: ThermalData): Prom
   // Đảm bảo các trường số liệu được gửi đi là kiểu số
   // Thêm dấu nháy đơn (') vào trước các trường text dễ bị GG Sheet hiểu lầm là ngày tháng (VD: 12/5)
   const payload = {
+    action: 'submitThermal',
     ...data,
     deviceLocation: `'${data.deviceLocation}`,
     stationName: `'${data.stationName}`,
@@ -23,8 +24,8 @@ export const submitThermalData = async (gasUrl: string, data: ThermalData): Prom
   };
 
   try {
-    // Sử dụng mode 'no-cors' để vượt qua các hạn chế bảo mật của trình duyệt khi gọi đến GAS
-    // Lưu ý: Trong mode này chúng ta không đọc được response body, nhưng GAS vẫn nhận được dữ liệu.
+    // Sử dụng mode 'no-cors' là cách ổn định nhất để gửi dữ liệu đến Google Apps Script từ trình duyệt
+    // mà không gặp lỗi CORS. Lưu ý: Chúng ta sẽ không đọc được phản hồi JSON, nhưng dữ liệu vẫn được ghi.
     await fetch(gasUrl, {
       method: 'POST',
       mode: 'no-cors',
@@ -36,7 +37,7 @@ export const submitThermalData = async (gasUrl: string, data: ThermalData): Prom
 
     return { 
       success: true, 
-      message: 'Dữ liệu (bao gồm Xuất tuyến & Loại kiểm tra) đã được gửi thành công!' 
+      message: 'Dữ liệu đã được gửi đi! Vui lòng kiểm tra Google Sheet sau vài giây.' 
     };
   } catch (error) {
     console.error('Lỗi gửi dữ liệu:', error);
@@ -94,7 +95,9 @@ export const fetchThermalData = async (gasUrl: string): Promise<ThermalData[]> =
       feeder: item.feeder?.toString().startsWith("'") ? item.feeder.toString().substring(1) : item.feeder,
       actionPlan: item.actionPlan?.toString().startsWith("'") ? item.actionPlan.toString().substring(1) : item.actionPlan,
       processedDate: item.processedDate?.toString().startsWith("'") ? item.processedDate.toString().substring(1) : item.processedDate,
+      postTemp: item.postTemp ? Number(item.postTemp) : undefined,
       date: item.date?.toString().startsWith("'") ? item.date.toString().substring(1) : item.date,
+      timestamp: item.timestamp,
     }));
   } catch (error) {
     clearTimeout(timeoutId);
@@ -128,14 +131,22 @@ export const manageFeederOnSheet = async (gasUrl: string, payload: {
   feeder: string;
 }): Promise<{ success: boolean; message: string }> => {
   if (!gasUrl) return { success: false, message: 'Chưa cấu hình URL' };
+  console.log(`Calling manageFeederOnSheet at: ${gasUrl}`, payload);
   try {
+    // Thêm sheetName: 'xuattuyen' vào payload để GAS biết cần ghi vào đâu
+    const finalPayload = {
+      ...payload,
+      sheetName: 'xuattuyen'
+    };
+
     const response = await fetch(gasUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify(payload),
+      body: JSON.stringify(finalPayload),
     });
     
     const text = await response.text();
+    console.log('GAS Response:', text);
     try {
       const result = JSON.parse(text);
       // Nếu là xóa và báo success: false, có thể là do không tìm thấy dòng để xóa (đã xóa rồi)
@@ -179,8 +190,6 @@ export const updateActionPlan = async (gasUrl: string, data: {
   };
 
   try {
-    // Gửi yêu cầu POST với Content-Type là text/plain để tránh lỗi CORS preflight
-    // và cho phép đọc phản hồi từ Google Apps Script
     const response = await fetch(gasUrl, {
       method: 'POST',
       headers: {
@@ -189,7 +198,22 @@ export const updateActionPlan = async (gasUrl: string, data: {
       body: JSON.stringify(payload),
     });
 
-    const result = await response.json();
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const text = await response.text();
+    let result;
+    try {
+      result = JSON.parse(text);
+    } catch (e) {
+      // Nếu không parse được JSON, có thể GAS trả về trang lỗi HTML hoặc chuỗi thuần
+      if (text.includes('"success":true')) {
+        result = { success: true };
+      } else {
+        throw new Error('Phản hồi từ máy chủ không đúng định dạng JSON.');
+      }
+    }
     
     if (result.success) {
       return { 
@@ -199,16 +223,14 @@ export const updateActionPlan = async (gasUrl: string, data: {
     } else {
       return {
         success: false,
-        message: result.error || 'Không tìm thấy dữ liệu khớp để cập nhật. Vui lòng kiểm tra lại.'
+        message: result.message || result.error || 'Không tìm thấy dữ liệu khớp để cập nhật. Vui lòng kiểm tra lại.'
       };
     }
   } catch (error) {
     console.error('Lỗi cập nhật kế hoạch xử lý:', error);
-    
-    // Fallback nếu có lỗi parse JSON (GAS đôi khi trả về HTML nếu lỗi)
     return { 
       success: false, 
-      message: 'Lỗi hệ thống: Không thể cập nhật dữ liệu. Vui lòng thử lại sau.' 
+      message: 'Lỗi hệ thống: ' + (error as Error).message 
     };
   }
 };

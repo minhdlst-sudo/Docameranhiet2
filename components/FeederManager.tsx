@@ -1,5 +1,6 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { RefreshCw } from 'lucide-react';
 import { getFeedersForUnit, updateFeedersForUnit } from '../services/feederService';
 import { fetchFeedersFromSheet, manageFeederOnSheet } from '../services/gasService';
 
@@ -30,8 +31,8 @@ const FeederManager: React.FC<FeederManagerProps> = ({ unit, gasUrl, onBack }) =
     // 2. Try to sync from Google Sheet
     try {
       const remoteLibrary = await fetchFeedersFromSheet(gasUrl);
-      if (remoteLibrary && remoteLibrary[unit]) {
-        const remoteFeeders = remoteLibrary[unit];
+      if (remoteLibrary) {
+        const remoteFeeders = Array.from(new Set(remoteLibrary[unit] || []));
         setFeeders(remoteFeeders);
         updateFeedersForUnit(unit, remoteFeeders);
         setSyncStatus('success');
@@ -66,7 +67,7 @@ const FeederManager: React.FC<FeederManagerProps> = ({ unit, gasUrl, onBack }) =
       // 1. Update on Google Sheet
       const result = await manageFeederOnSheet(gasUrl, {
         action: 'addFeeder',
-        unit: unit,
+        unit: unit.trim(),
         feeder: trimmed
       });
 
@@ -97,8 +98,8 @@ const FeederManager: React.FC<FeederManagerProps> = ({ unit, gasUrl, onBack }) =
       // 1. Update on Google Sheet
       const result = await manageFeederOnSheet(gasUrl, {
         action: 'deleteFeeder',
-        unit: unit,
-        feeder: feederToDelete
+        unit: unit.trim(),
+        feeder: feederToDelete.trim()
       });
 
       if (result.success) {
@@ -128,8 +129,8 @@ const FeederManager: React.FC<FeederManagerProps> = ({ unit, gasUrl, onBack }) =
       try {
         const result = await manageFeederOnSheet(gasUrl, {
           action: 'addFeeder',
-          unit: unit,
-          feeder: itemToRestore
+          unit: unit.trim(),
+          feeder: itemToRestore.trim()
         });
         if (result.success) {
           const updated = [...feeders, itemToRestore];
@@ -157,6 +158,17 @@ const FeederManager: React.FC<FeederManagerProps> = ({ unit, gasUrl, onBack }) =
       <div className="flex items-center justify-between mb-6">
         <h2 className="text-lg font-black text-slate-800">Quản lý Xuất tuyến</h2>
         <div className="flex gap-2">
+          <button 
+            onClick={loadData}
+            disabled={isLoading}
+            className={`text-[10px] font-bold uppercase px-3 py-2 rounded-lg transition-all flex items-center gap-1 ${
+              syncStatus === 'syncing' ? 'bg-blue-100 text-blue-400' : 'bg-blue-50 text-blue-600 hover:bg-blue-100'
+            }`}
+            title="Đồng bộ với Google Sheet"
+          >
+            <RefreshCw className={`w-3 h-3 ${syncStatus === 'syncing' ? 'animate-spin' : ''}`} />
+            {syncStatus === 'syncing' ? 'Đang đồng bộ...' : 'Đồng bộ'}
+          </button>
           {deletedHistory.length > 0 && (
             <button 
               onClick={() => setShowHistory(!showHistory)}
@@ -181,9 +193,9 @@ const FeederManager: React.FC<FeederManagerProps> = ({ unit, gasUrl, onBack }) =
         <div className="mb-6 p-4 bg-emerald-50 rounded-2xl border border-emerald-100 animate-fadeIn">
           <p className="text-[10px] font-black text-emerald-700 uppercase mb-3">Chọn xuất tuyến để khôi phục:</p>
           <div className="flex flex-wrap gap-2">
-            {deletedHistory.map(f => (
+            {deletedHistory.map((f, idx) => (
               <button
-                key={f}
+                key={`${f}-${idx}`}
                 onClick={() => handleRestore(f)}
                 className="bg-white border border-emerald-200 text-emerald-700 px-3 py-1.5 rounded-xl text-xs font-bold hover:bg-emerald-600 hover:text-white transition-all active:scale-90 flex items-center gap-1 shadow-sm"
               >
@@ -235,8 +247,8 @@ const FeederManager: React.FC<FeederManagerProps> = ({ unit, gasUrl, onBack }) =
             <p className="text-slate-400 text-sm italic">Chưa có xuất tuyến nào.</p>
           </div>
         ) : (
-          [...feeders].sort((a, b) => a.localeCompare(b, undefined, {numeric: true})).map(f => (
-            <div key={f} className="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-100 hover:border-slate-200 transition-all overflow-hidden">
+          [...feeders].sort((a, b) => a.localeCompare(b, undefined, {numeric: true})).map((f, idx) => (
+            <div key={`${f}-${idx}`} className="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-100 hover:border-slate-200 transition-all overflow-hidden">
               {confirmDelete === f ? (
                 <div className="flex items-center justify-between w-full animate-fadeIn">
                   <span className="text-xs font-bold text-rose-600 uppercase">Xác nhận xóa?</span>
