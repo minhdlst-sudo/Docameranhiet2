@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ViewState, ThermalData } from './types';
 import Login from './components/Login';
 import ThermalForm from './components/ThermalForm';
@@ -20,6 +20,19 @@ const App: React.FC = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showGuide, setShowGuide] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error' | 'warning', text: string } | null>(null);
+  
+  // Thêm cảnh báo trước khi thoát app
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      // Thông báo chuẩn của trình duyệt sẽ hiện ra
+      // Hầu hết trình duyệt hiện đại không cho phép tùy chỉnh nội dung câu hỏi
+      e.preventDefault();
+      e.returnValue = ''; 
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, []);
 
   const handleLogin = (unit: string) => {
     setUserUnit(unit);
@@ -103,7 +116,11 @@ const App: React.FC = () => {
               </div>
               <div className="flex gap-2">
                 <button 
-                  onClick={() => setView(ViewState.LOGIN)} 
+                  onClick={() => {
+                    if (window.confirm("Bạn có chắc chắn muốn đăng xuất và thoát phiên làm việc không?")) {
+                      setView(ViewState.LOGIN);
+                    }
+                  }} 
                   className="text-[10px] font-bold text-rose-500 uppercase px-3 py-2 bg-rose-50 rounded-lg active:scale-95 transition-all"
                 >
                   Đăng xuất
