@@ -184,21 +184,27 @@ const DataViewer: React.FC<DataViewerProps> = ({ gasUrl, currentUnit, onBack }) 
     for (let i = 0; i < csvContent.length; i++) {
       view[i] = csvContent.charCodeAt(i);
     }
-    const blob = new Blob([bom, buffer], { type: 'text/csv;charset=utf-16le;' });
+    const blob = new Blob([bom, buffer], { type: 'application/octet-stream' });
     
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = `Ket_qua_nhiet_${currentUnit.replace(/\s+/g, '_')}_${new Date().getTime()}.csv`;
-    link.style.display = 'none';
+    link.setAttribute('download', `Ket_qua_nhiet_${currentUnit.replace(/\s+/g, '_')}_${new Date().getTime()}.csv`);
+    
+    // Đảm bảo phần tử tồn tại trong DOM và có thể tương tác trên di động
+    link.style.visibility = 'hidden';
+    link.style.position = 'absolute';
+    link.style.bottom = '0px';
+    link.style.left = '0px';
+    
     document.body.appendChild(link);
     link.click();
     
-    // Giải phóng bộ nhớ sau một khoảng thời gian ngắn để đảm bảo trình duyệt di động đã bắt đầu tải
+    // Tăng thời gian chờ giải phóng bộ nhớ trên di động
     setTimeout(() => {
       document.body.removeChild(link);
-      URL.revokeObjectURL(url);
-    }, 200);
+      window.URL.revokeObjectURL(url);
+    }, 1000);
   };
 
   useEffect(() => {
@@ -267,7 +273,6 @@ const DataViewer: React.FC<DataViewerProps> = ({ gasUrl, currentUnit, onBack }) 
           {!loading && filteredData.length > 0 && (
             <button 
               onClick={(e) => {
-                e.preventDefault();
                 e.stopPropagation();
                 handleDownloadCSV();
               }}
