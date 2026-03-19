@@ -247,7 +247,7 @@ const FeederManager: React.FC<FeederManagerProps> = ({ unit, gasUrl, onBack }) =
             <p className="text-slate-400 text-sm italic">Chưa có xuất tuyến nào.</p>
           </div>
         ) : (
-          [...feeders].sort((a, b) => a.localeCompare(b, undefined, {numeric: true})).map((f, idx) => (
+          [...feeders].sort((a, b) => String(a || '').localeCompare(String(b || ''), undefined, {numeric: true})).map((f, idx) => (
             <div key={`${f}-${idx}`} className="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-100 hover:border-slate-200 transition-all overflow-hidden">
               {confirmDelete === f ? (
                 <div className="flex items-center justify-between w-full animate-fadeIn">

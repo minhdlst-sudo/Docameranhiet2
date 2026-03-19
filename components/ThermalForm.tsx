@@ -225,7 +225,7 @@ const ThermalForm: React.FC<ThermalFormProps> = ({ unit, gasUrl, feederGasUrl, o
                 <option value="" disabled>
                   {isLoadingFeeders && feeders.length === 0 ? '-- Đang đồng bộ... --' : '-- Chọn xuất tuyến --'}
                 </option>
-                {feeders.map((f, idx) => (
+                {[...feeders].sort((a, b) => String(a || '').localeCompare(String(b || ''), undefined, {numeric: true})).map((f, idx) => (
                   <option key={`${f}-${idx}`} value={f}>{f}</option>
                 ))}
               </select>
