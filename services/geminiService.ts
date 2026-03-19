@@ -17,10 +17,9 @@ export const getThermalAnalysis = async (temp: number, refTemp: number, load: nu
   const prompt = `Bạn là chuyên gia chẩn đoán nhiệt thiết bị điện của EVN. 
     Dữ liệu đo: t1=${temp}°C (thiết bị), t2=${refTemp}°C (tham chiếu), ΔT=${deltaT.toFixed(1)}°C, phụ tải=${load}A.
     Dựa trên quy trình kỹ thuật:
-    - Nếu ΔT < 5°C: Bình thường.
-    - Nếu 5°C <= ΔT < 15°C: Theo dõi.
-    - Nếu 15°C <= ΔT < 30°C: Nghiêm trọng (Cần tăng cường kiểm tra 1 tháng/lần vào giờ cao điểm).
-    - Nếu ΔT >= 30°C hoặc t1 > 75°C: Nguy cấp (Cần xử lý ngay).
+    - Nếu ΔT <= 15°C: Bình thường.
+    - Nếu ΔT> 15°C: Theo dõi (Cần tăng cường kiểm tra 1 tháng/lần vào giờ cao điểm).
+    - Nếu t1 > 75°C: Nguy cấp (Cần xử lý ngay).
     Hãy đưa ra kết luận cực ngắn gọn (dưới 25 từ), bắt đầu bằng phân loại (Bình thường/Theo dõi/Nghiêm trọng/Nguy cấp) và hướng xử lý nhanh.`;
 
   try {
