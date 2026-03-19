@@ -10,7 +10,7 @@ interface DataViewerProps {
   onBack: () => void;
 }
 
-type WarningLevel = 'All' | 'Normal' | 'Monitor' | 'Serious' | 'Emergency';
+type WarningLevel = 'All' | 'Normal' | 'Monitor' | 'Emergency';
 
 const DataViewer: React.FC<DataViewerProps> = ({ gasUrl, currentUnit, onBack }) => {
   const [data, setData] = useState<ThermalData[]>([]);
@@ -213,17 +213,15 @@ const DataViewer: React.FC<DataViewerProps> = ({ gasUrl, currentUnit, onBack }) 
 
   const getWarningLevel = (measured: number, reference: number): WarningLevel => {
     const diff = measured - reference;
-    if (diff < 5) return 'Normal';
-    if (diff < 15) return 'Monitor';
-    if (diff < 30) return 'Serious';
-    return 'Emergency';
+    if (measured > 75) return 'Emergency';
+    if (diff > 15) return 'Monitor';
+    return 'Normal';
   };
 
   const getWarningLabel = (level: WarningLevel) => {
     switch (level) {
       case 'Normal': return { text: 'Bình thường', color: 'text-emerald-600', bg: 'bg-emerald-50' };
-      case 'Monitor': return { text: 'Theo dõi', color: 'text-blue-600', bg: 'bg-blue-50' };
-      case 'Serious': return { text: 'Nghiêm trọng', color: 'text-orange-600', bg: 'bg-orange-50' };
+      case 'Monitor': return { text: 'Theo dõi', color: 'text-orange-600', bg: 'bg-orange-50' };
       case 'Emergency': return { text: 'Nguy cấp', color: 'text-rose-600', bg: 'bg-rose-50' };
       default: return { text: 'Tất cả', color: 'text-slate-600', bg: 'bg-slate-50' };
     }
@@ -243,7 +241,7 @@ const DataViewer: React.FC<DataViewerProps> = ({ gasUrl, currentUnit, onBack }) 
   });
 
   const counts = useMemo(() => {
-    const c = { All: data.length, Normal: 0, Monitor: 0, Serious: 0, Emergency: 0 };
+    const c = { All: data.length, Normal: 0, Monitor: 0, Emergency: 0 };
     data.forEach(item => {
       const level = getWarningLevel(Number(item.measuredTemp), Number(item.referenceTemp));
       if (level in c) {
@@ -307,7 +305,7 @@ const DataViewer: React.FC<DataViewerProps> = ({ gasUrl, currentUnit, onBack }) 
         />
         
         <div className="flex flex-wrap gap-1.5">
-          {(['All', 'Normal', 'Monitor', 'Serious', 'Emergency'] as WarningLevel[]).map(level => {
+          {(['All', 'Normal', 'Monitor', 'Emergency'] as WarningLevel[]).map(level => {
             const label = getWarningLabel(level);
             const isActive = warningFilter === level;
             const count = counts[level as keyof typeof counts];
@@ -482,7 +480,7 @@ const DataViewer: React.FC<DataViewerProps> = ({ gasUrl, currentUnit, onBack }) 
                     </div>
                   </div>
 
-                  {(level === 'Serious' || level === 'Emergency' || item.actionPlan || item.processedDate || item.postTemp) && (
+                  {(level === 'Monitor' || level === 'Emergency' || item.actionPlan || item.processedDate || item.postTemp) && (
                     <div className="pt-3 border-t border-blue-50 bg-blue-50/30 rounded-xl p-3 w-full">
                       <p className="text-[10px] font-black text-blue-500 uppercase tracking-widest mb-2">Thông tin xử lý khiếm khuyết</p>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">

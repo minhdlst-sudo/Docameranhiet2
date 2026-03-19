@@ -58,10 +58,9 @@ const Dashboard: React.FC<DashboardProps> = ({ gasUrl, currentUnit, onBack }) =>
 
   const getWarningLevel = (measured: number, reference: number) => {
     const diff = measured - reference;
-    if (diff < 5) return 'Bình thường';
-    if (diff < 15) return 'Theo dõi';
-    if (diff < 30) return 'Nghiêm trọng';
-    return 'Nguy cấp';
+    if (measured > 75) return 'Nguy cấp';
+    if (diff > 15) return 'Theo dõi';
+    return 'Bình thường';
   };
 
   // Dữ liệu cho biểu đồ cột (Theo tháng trong năm hiện tại)
@@ -92,7 +91,6 @@ const Dashboard: React.FC<DashboardProps> = ({ gasUrl, currentUnit, onBack }) =>
     const stats = {
       'Bình thường': 0,
       'Theo dõi': 0,
-      'Nghiêm trọng': 0,
       'Nguy cấp': 0
     };
 
@@ -103,8 +101,7 @@ const Dashboard: React.FC<DashboardProps> = ({ gasUrl, currentUnit, onBack }) =>
 
     return [
       { name: 'Bình thường', value: stats['Bình thường'] || 0, color: '#10b981' },
-      { name: 'Theo dõi', value: stats['Theo dõi'] || 0, color: '#3b82f6' },
-      { name: 'Nghiêm trọng', value: stats['Nghiêm trọng'] || 0, color: '#f59e0b' },
+      { name: 'Theo dõi', value: stats['Theo dõi'] || 0, color: '#f59e0b' },
       { name: 'Nguy cấp', value: stats['Nguy cấp'] || 0, color: '#ef4444' }
     ].filter(item => item.value > 0 && !isNaN(item.value));
   }, [data]);
@@ -118,8 +115,9 @@ const Dashboard: React.FC<DashboardProps> = ({ gasUrl, currentUnit, onBack }) =>
     let processed = 0;
 
     data.forEach(item => {
-      const diff = Number(item.measuredTemp) - Number(item.referenceTemp);
-      if (diff >= 15) {
+      const measured = Number(item.measuredTemp);
+      const diff = measured - Number(item.referenceTemp);
+      if (diff > 15 || measured > 75) {
         defects++;
         if (item.actionPlan && item.actionPlan.trim() !== "") {
           planned++;

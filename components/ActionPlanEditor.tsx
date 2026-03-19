@@ -56,10 +56,11 @@ const ActionPlanEditor: React.FC<ActionPlanEditorProps> = ({ gasUrl, currentUnit
       // Lọc dữ liệu theo đơn vị đang đăng nhập và mức cảnh báo (Chỉ hiện Nghiêm trọng & Nguy cấp: Delta T >= 15 HOẶC đã có kế hoạch)
       const unitData = validData.filter(item => {
         const isCorrectUnit = item.unit === currentUnit;
-        const diff = Number(item.measuredTemp) - Number(item.referenceTemp);
-        const isSeriousOrEmergency = diff >= 15;
+        const measured = Number(item.measuredTemp);
+        const diff = measured - Number(item.referenceTemp);
+        const isMonitorOrEmergency = diff > 15 || measured > 75;
         const hasActionPlan = !!(item.actionPlan || item.processedDate || item.postTemp);
-        return isCorrectUnit && (isSeriousOrEmergency || hasActionPlan);
+        return isCorrectUnit && (isMonitorOrEmergency || hasActionPlan);
       });
       
       // Sắp xếp theo ngày mới nhất
@@ -286,7 +287,7 @@ const ActionPlanEditor: React.FC<ActionPlanEditorProps> = ({ gasUrl, currentUnit
                   >
                     <div className="flex justify-between items-start mb-2">
                       <h4 className="font-bold text-slate-800 text-sm group-hover:text-blue-600 transition-colors">{item.stationName}</h4>
-                      <span className="text-[10px] font-black text-rose-500 bg-rose-50 px-2 py-0.5 rounded-full">
+                      <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${Number(item.measuredTemp) > 75 ? 'text-rose-500 bg-rose-50' : 'text-orange-500 bg-orange-50'}`}>
                         ΔT: {(Number(item.measuredTemp) - Number(item.referenceTemp)).toFixed(1)}°C
                       </span>
                     </div>

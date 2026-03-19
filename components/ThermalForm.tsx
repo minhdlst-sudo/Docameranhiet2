@@ -300,9 +300,8 @@ const ThermalForm: React.FC<ThermalFormProps> = ({ unit, gasUrl, feederGasUrl, o
             <div className="flex items-center gap-1.5 px-3 py-1 bg-white border border-blue-100 rounded-full shadow-sm">
               <span className="text-[9px] font-black text-slate-400 uppercase tracking-tighter">ΔT:</span>
               <span className={`text-sm font-black leading-none ${
-                (Number(formData.measuredTemp || 0) - Number(formData.referenceTemp || 0)) < 5 ? 'text-emerald-500' :
-                (Number(formData.measuredTemp || 0) - Number(formData.referenceTemp || 0)) < 15 ? 'text-blue-500' :
-                (Number(formData.measuredTemp || 0) - Number(formData.referenceTemp || 0)) < 30 ? 'text-orange-500' : 'text-rose-500'
+                Number(formData.measuredTemp || 0) > 75 ? 'text-rose-500' :
+                (Number(formData.measuredTemp || 0) - Number(formData.referenceTemp || 0)) > 15 ? 'text-orange-500' : 'text-emerald-500'
               }`}>
                 {(Number(formData.measuredTemp || 0) - Number(formData.referenceTemp || 0)).toFixed(1)}°C
               </span>
