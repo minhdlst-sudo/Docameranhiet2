@@ -1,0 +1,17 @@
+{
+  "name": "Camera Nhiệt Thông Minh",
+  "short_name": "Camera nhiet",
+  "description": "Sổ tay Camera nhiệt thông minh - QNPC",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#3b82f6",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

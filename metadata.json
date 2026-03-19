@@ -1,5 +1,5 @@
 {
-  "name": "QNPC Smart Thermal",
+  "name": "Camera nhiet",
   "description": "Sổ tay Camera nhiệt thông minh - QNPC",
   "requestFramePermissions": [
     "camera",

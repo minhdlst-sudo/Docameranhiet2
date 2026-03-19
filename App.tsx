@@ -67,7 +67,7 @@ const App: React.FC = () => {
           </div>
           <div className="flex flex-col items-center gap-1">
             <h1 className="text-2xl font-black tracking-tight text-slate-900 leading-tight">
-              QNPC <span className="text-blue-600">Smart Thermal</span>
+              Camera <span className="text-blue-600">nhiet</span>
             </h1>
             <div className="flex items-center gap-2">
               <span className="bg-blue-100 text-blue-700 text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider">Chuyển đổi số</span>
