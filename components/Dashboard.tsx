@@ -6,7 +6,7 @@ import {
 } from 'recharts';
 import { ThermalData } from '../types';
 import { fetchThermalData } from '../services/gasService';
-import { BarChart3, PieChart as PieChartIcon, ArrowLeft, RefreshCw, Calendar, ClipboardList, CheckCircle2, AlertTriangle, Building2, ChevronDown } from 'lucide-react';
+import { BarChart3, PieChart as PieChartIcon, ArrowLeft, RefreshCw, Calendar, ClipboardList, CheckCircle2, AlertTriangle, Building2, ChevronDown, AlertCircle } from 'lucide-react';
 import { UNIT_FEEDERS } from '../constants';
 
 interface DashboardProps {
@@ -133,6 +133,23 @@ const Dashboard: React.FC<DashboardProps> = ({ gasUrl, currentUnit, onBack }) =>
       { name: 'Đã lập KH', value: planned, color: '#f59e0b', icon: <ClipboardList className="w-3 h-3" /> },
       { name: 'Đã xử lý', value: processed, color: '#10b981', icon: <CheckCircle2 className="w-3 h-3" /> }
     ];
+  }, [data]);
+
+  const defectiveLocations = useMemo(() => {
+    return data.filter(item => {
+      const measured = Number(item.measuredTemp);
+      const diff = measured - Number(item.referenceTemp);
+      return diff > 15 || measured > 75;
+    }).sort((a, b) => {
+      // Sắp xếp: Nguy cấp trước, Theo dõi sau, rồi đến ngày mới nhất
+      const levelA = getWarningLevel(Number(a.measuredTemp), Number(a.referenceTemp));
+      const levelB = getWarningLevel(Number(b.measuredTemp), Number(b.referenceTemp));
+      
+      if (levelA === 'Nguy cấp' && levelB !== 'Nguy cấp') return -1;
+      if (levelA !== 'Nguy cấp' && levelB === 'Nguy cấp') return 1;
+      
+      return new Date(b.date).getTime() - new Date(a.date).getTime();
+    });
   }, [data]);
 
   return (
@@ -312,6 +329,101 @@ const Dashboard: React.FC<DashboardProps> = ({ gasUrl, currentUnit, onBack }) =>
                 </PieChart>
               </ResponsiveContainer>
             </div>
+          </div>
+
+          {/* Danh sách vị trí khiếm khuyết */}
+          <div className="space-y-4 pt-4 border-t border-slate-100">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 text-rose-500" />
+                <h3 className="text-xs font-black text-slate-800 uppercase tracking-wider">Danh sách vị trí khiếm khuyết ({defectiveLocations.length})</h3>
+              </div>
+            </div>
+
+            {defectiveLocations.length === 0 ? (
+              <div className="py-8 text-center bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+                <p className="text-slate-400 text-[10px] italic">Không có vị trí khiếm khuyết nào.</p>
+              </div>
+            ) : (
+              <div className="space-y-3 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
+                {defectiveLocations.map((item, idx) => {
+                  const level = getWarningLevel(Number(item.measuredTemp), Number(item.referenceTemp));
+                  const isEmergency = level === 'Nguy cấp';
+                  return (
+                    <div key={idx} className={`p-4 rounded-2xl border transition-all ${isEmergency ? 'bg-rose-50 border-rose-100' : 'bg-orange-50 border-orange-100'}`}>
+                      <div className="flex justify-between items-start mb-2">
+                        <h4 className="text-[11px] font-black text-slate-800 truncate pr-2 uppercase">{item.stationName}</h4>
+                        <span className={`text-[8px] font-black uppercase px-2 py-0.5 rounded-full ${isEmergency ? 'bg-rose-600 text-white' : 'bg-orange-500 text-white'}`}>
+                          {level}
+                        </span>
+                      </div>
+                      
+                      <div className="space-y-1.5 mb-3">
+                        <div className="grid grid-cols-2 gap-x-3 gap-y-1.5 text-[10px] text-slate-600 font-bold">
+                          <div className="col-span-2 flex items-center gap-1.5">
+                            <span className="text-slate-400 text-[8px] uppercase font-black flex-shrink-0">Đơn vị:</span>
+                            <span className="truncate text-slate-800">{item.unit}</span>
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-slate-400 text-[8px] uppercase font-black flex-shrink-0">Vị trí:</span>
+                            <span className="truncate text-slate-800">{item.deviceLocation}</span>
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-slate-400 text-[8px] uppercase font-black flex-shrink-0">Tuyến:</span>
+                            <span className="truncate text-slate-800">{item.feeder}</span>
+                          </div>
+                        </div>
+
+                        {/* Thông tin xử lý khiếm khuyết */}
+                        <div className="p-2.5 bg-white/60 rounded-xl border border-black/5 space-y-2 shadow-sm">
+                          <div className="text-[10px] leading-tight">
+                            <span className="text-slate-400 text-[8px] uppercase font-black block mb-0.5 tracking-tighter">Kế hoạch xử lý</span>
+                            <span className={`font-bold ${item.actionPlan ? 'text-slate-800' : 'text-slate-400 italic'}`}>
+                              {item.actionPlan || 'Chưa cập nhật'}
+                            </span>
+                          </div>
+                          <div className="grid grid-cols-2 gap-3">
+                            <div className="text-[10px]">
+                              <span className="text-slate-400 text-[8px] uppercase font-black block mb-0.5 tracking-tighter">Ngày xử lý</span>
+                              <span className={`font-bold ${item.processedDate ? 'text-blue-600' : 'text-slate-400 italic'}`}>
+                                {item.processedDate || 'Chưa có'}
+                              </span>
+                            </div>
+                            <div className="text-[10px]">
+                              <span className="text-slate-400 text-[8px] uppercase font-black block mb-0.5 tracking-tighter">Nhiệt độ sau</span>
+                              <span className={`font-bold ${item.postTemp ? 'text-emerald-600' : 'text-slate-400 italic'}`}>
+                                {item.postTemp ? `${item.postTemp}°C` : 'Chưa đo'}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-between mt-3 pt-3 border-t border-black/5">
+                        <div className="flex gap-4">
+                          <div className="flex flex-col">
+                            <span className="text-[8px] text-slate-400 uppercase font-black">Nhiệt độ đo</span>
+                            <span className="text-[11px] font-black text-slate-800">{item.measuredTemp}°C</span>
+                          </div>
+                          <div className="flex flex-col">
+                            <span className="text-[8px] text-slate-400 uppercase font-black">Chênh lệch ΔT</span>
+                            <span className={`text-[11px] font-black ${isEmergency ? 'text-rose-600' : 'text-orange-600'}`}>
+                              {(Number(item.measuredTemp) - Number(item.referenceTemp)).toFixed(1)}°C
+                            </span>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <span className="text-[9px] text-slate-400 font-bold block italic">Ngày đo</span>
+                          <span className="text-[10px] text-slate-500 font-black">
+                            {new Date(item.date).toLocaleDateString('vi-VN')}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         </div>
       )}
