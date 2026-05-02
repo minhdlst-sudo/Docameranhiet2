@@ -56,6 +56,29 @@ const Dashboard: React.FC<DashboardProps> = ({ gasUrl, currentUnit, onBack }) =>
     return allData.filter(item => item.unit === selectedStatUnit);
   }, [allData, selectedStatUnit]);
 
+  // Hàm định dạng ngày tháng tiếng Việt
+  const formatDate = (dateStr: string | undefined) => {
+    if (!dateStr) return '';
+    
+    // 1. Thử parse DD/MM/YYYY (Ưu tiên định dạng VN/GG Sheets)
+    const parts = String(dateStr).split('/');
+    if (parts.length === 3) {
+      const d = parseInt(parts[0]);
+      const m = parseInt(parts[1]) - 1;
+      const y = parseInt(parts[2]);
+      const newDate = new Date(y, m, d);
+      if (!isNaN(newDate.getTime())) return newDate.toLocaleDateString('vi-VN');
+    }
+
+    // 2. Sử dụng Date object để parse các định dạng khác
+    const date = new Date(dateStr);
+    if (isNaN(date.getTime())) {
+      return dateStr;
+    }
+    // Trả về định dạng ngày ĐỊA PHƯƠNG để tránh lệch múi giờ
+    return date.toLocaleDateString('vi-VN');
+  };
+
   const getWarningLevel = (measured: number, reference: number) => {
     const diff = measured - reference;
     if (measured > 75) return 'Nguy cấp';
@@ -384,9 +407,9 @@ const Dashboard: React.FC<DashboardProps> = ({ gasUrl, currentUnit, onBack }) =>
                           </div>
                           <div className="grid grid-cols-2 gap-3">
                             <div className="text-[10px]">
-                              <span className="text-slate-400 text-[8px] uppercase font-black block mb-0.5 tracking-tighter">Ngày xử lý</span>
+                              <span className="text-slate-400 text-[8px] uppercase font-black block mb-0.5 tracking-tighter">Ngày đã xử lý</span>
                               <span className={`font-bold ${item.processedDate ? 'text-blue-600' : 'text-slate-400 italic'}`}>
-                                {item.processedDate || 'Chưa có'}
+                                {item.processedDate ? formatDate(item.processedDate) : 'Chưa có'}
                               </span>
                             </div>
                             <div className="text-[10px]">
@@ -396,6 +419,18 @@ const Dashboard: React.FC<DashboardProps> = ({ gasUrl, currentUnit, onBack }) =>
                               </span>
                             </div>
                           </div>
+                          {item.postImage && (
+                            <div className="flex items-center gap-2 pt-1 border-t border-black/5 mt-1">
+                              <span className="text-slate-400 text-[8px] uppercase font-black tracking-tighter">Ảnh sau xử lý:</span>
+                              <div className="w-8 h-8 rounded-lg bg-slate-100 overflow-hidden border border-black/5">
+                                <img 
+                                  src={item.postImage.startsWith('data:') ? item.postImage : `https://drive.google.com/thumbnail?id=${item.postImage}&sz=s300`} 
+                                  alt="Post" 
+                                  className="w-full h-full object-cover"
+                                />
+                              </div>
+                            </div>
+                          )}
                         </div>
                       </div>
 
@@ -415,7 +450,7 @@ const Dashboard: React.FC<DashboardProps> = ({ gasUrl, currentUnit, onBack }) =>
                         <div className="text-right">
                           <span className="text-[9px] text-slate-400 font-bold block italic">Ngày đo</span>
                           <span className="text-[10px] text-slate-500 font-black">
-                            {new Date(item.date).toLocaleDateString('vi-VN')}
+                            {formatDate(item.date)}
                           </span>
                         </div>
                       </div>

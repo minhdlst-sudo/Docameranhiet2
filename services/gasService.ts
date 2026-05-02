@@ -17,6 +17,7 @@ export const submitThermalData = async (gasUrl: string, data: ThermalData): Prom
     actionPlan: data.actionPlan ? `'${data.actionPlan}` : '',
     processedDate: data.processedDate ? `'${data.processedDate}` : '',
     postTemp: data.postTemp !== undefined ? Number(data.postTemp) : '',
+    postImage: data.postImage || '',
     measuredTemp: Number(data.measuredTemp),
     referenceTemp: Number(data.referenceTemp),
     ambientTemp: Number(data.ambientTemp),
@@ -96,6 +97,7 @@ export const fetchThermalData = async (gasUrl: string): Promise<ThermalData[]> =
       actionPlan: item.actionPlan?.toString().startsWith("'") ? item.actionPlan.toString().substring(1) : item.actionPlan,
       processedDate: item.processedDate?.toString().startsWith("'") ? item.processedDate.toString().substring(1) : item.processedDate,
       postTemp: item.postTemp ? Number(item.postTemp) : undefined,
+      postImage: item.postImage,
       date: item.date?.toString().startsWith("'") ? item.date.toString().substring(1) : item.date,
       timestamp: item.timestamp,
     }));
@@ -174,6 +176,7 @@ export const updateActionPlan = async (gasUrl: string, data: {
   actionPlan: string;
   processedDate?: string;
   postTemp?: string | number;
+  postImage?: string;
 }): Promise<{ success: boolean; message: string }> => {
   if (!gasUrl || gasUrl.trim() === "") {
     return { success: false, message: 'Lỗi: Chưa cấu hình URL Google Apps Script.' };
@@ -186,7 +189,8 @@ export const updateActionPlan = async (gasUrl: string, data: {
     date: data.date,
     actionPlan: data.actionPlan,
     processedDate: data.processedDate,
-    postTemp: data.postTemp
+    postTemp: data.postTemp,
+    postImage: data.postImage
   };
 
   try {

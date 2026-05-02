@@ -20,6 +20,7 @@ export interface ThermalData {
   actionPlan?: string;
   processedDate?: string;
   postTemp?: number;
+  postImage?: string; // Ảnh sau xử lý (Base64) - Cột X
 }
 
 export interface AppConfig {

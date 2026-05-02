@@ -3,7 +3,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { ThermalData } from '../types';
 import { fetchThermalData, updateActionPlan } from '../services/gasService';
 import { motion, AnimatePresence } from 'framer-motion';
-import { RefreshCw, ArrowLeft } from 'lucide-react';
+import { RefreshCw, ArrowLeft, Camera, Image, X } from 'lucide-react';
 
 interface ActionPlanEditorProps {
   gasUrl: string;
@@ -20,25 +20,60 @@ const ActionPlanEditor: React.FC<ActionPlanEditorProps> = ({ gasUrl, currentUnit
   const [actionPlan, setActionPlan] = useState('');
   const [processedDate, setProcessedDate] = useState('');
   const [postTemp, setPostTemp] = useState('');
+  const [postImage, setPostImage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
-  const formatDate = (dateStr: string) => {
-    if (!dateStr) return 'N/A';
+  const formatDate = (dateStr: string | undefined) => {
+    if (!dateStr) return '';
+    
+    // 1. Thử parse DD/MM/YYYY (Ưu tiên định dạng VN/GG Sheets)
+    const parts = String(dateStr).split('/');
+    if (parts.length === 3) {
+      const d = parseInt(parts[0]);
+      const m = parseInt(parts[1]) - 1;
+      const y = parseInt(parts[2]);
+      const newDate = new Date(y, m, d);
+      if (!isNaN(newDate.getTime())) return newDate.toLocaleDateString('vi-VN');
+    }
+
+    // 2. Sử dụng Date object để parse các định dạng khác
     const date = new Date(dateStr);
     if (isNaN(date.getTime())) {
-      // Thử parse nếu định dạng là DD/MM/YYYY
-      const parts = dateStr.split('/');
-      if (parts.length === 3) {
-        const d = parseInt(parts[0]);
-        const m = parseInt(parts[1]) - 1;
-        const y = parseInt(parts[2]);
-        const newDate = new Date(y, m, d);
-        if (!isNaN(newDate.getTime())) return newDate.toLocaleDateString('vi-VN');
-      }
-      return dateStr; // Trả về chuỗi gốc nếu không parse được
+      return dateStr;
     }
+    // Trả về định dạng ngày ĐỊA PHƯƠNG để tránh lệch múi giờ
     return date.toLocaleDateString('vi-VN');
+  };
+
+  // Chuyển đổi định dạng ngày bất kỳ sang YYYY-MM-DD cho input type="date"
+  const formatToInputDate = (dateStr: string | undefined): string => {
+    if (!dateStr) return '';
+    
+    const str = String(dateStr).trim();
+    if (!str) return '';
+
+    // 1. Thử parse DD/MM/YYYY (Ưu tiên định dạng VN/GG Sheets hiển thị)
+    const parts = str.split('/');
+    if (parts.length === 3) {
+      const d = parts[0].padStart(2, '0');
+      const m = parts[1].padStart(2, '0');
+      const y = parts[2];
+      const fullY = y.length === 2 ? `20${y}` : (y.length === 4 ? y : y);
+      return `${fullY}-${m}-${d}`;
+    }
+
+    // 2. Sử dụng đối tượng Date để parse các định dạng khác (ISO, ...)
+    // Sau đó lấy các thành phần ngày/tháng/năm theo giờ ĐỊA PHƯƠNG để tránh lệch múi giờ
+    const date = new Date(str);
+    if (!isNaN(date.getTime())) {
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    }
+    
+    return '';
   };
 
   const loadData = useCallback(async () => {
@@ -93,7 +128,8 @@ const ActionPlanEditor: React.FC<ActionPlanEditorProps> = ({ gasUrl, currentUnit
       date: selectedItem.date,
       actionPlan: actionPlan,
       processedDate: processedDate,
-      postTemp: postTemp
+      postTemp: postTemp,
+      postImage: postImage || undefined
     });
 
     if (result.success) {
@@ -101,7 +137,7 @@ const ActionPlanEditor: React.FC<ActionPlanEditorProps> = ({ gasUrl, currentUnit
       // Cập nhật local data
       setData(prev => prev.map(item => 
         (item.stationName === selectedItem.stationName && item.deviceLocation === selectedItem.deviceLocation && item.date === selectedItem.date)
-        ? { ...item, actionPlan: actionPlan, processedDate: processedDate, postTemp: postTemp ? Number(postTemp) : undefined }
+        ? { ...item, actionPlan: actionPlan, processedDate: processedDate, postTemp: postTemp ? Number(postTemp) : undefined, postImage: postImage || item.postImage }
         : item
       ));
       
@@ -115,6 +151,21 @@ const ActionPlanEditor: React.FC<ActionPlanEditorProps> = ({ gasUrl, currentUnit
       setTimeout(() => setError(null), 5000);
     }
     setIsSubmitting(false);
+  };
+
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 2 * 1024 * 1024) {
+        alert('Kích thước ảnh quá lớn (tối đa 2MB)');
+        return;
+      }
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setPostImage(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
   };
 
   return (
@@ -200,6 +251,36 @@ const ActionPlanEditor: React.FC<ActionPlanEditorProps> = ({ gasUrl, currentUnit
                   className="w-full p-3.5 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none text-sm font-bold text-slate-700"
                 />
               </div>
+
+              <div className="col-span-full">
+                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1">Hình ảnh sau xử lý</label>
+                <div className="flex flex-wrap gap-3">
+                  {!postImage ? (
+                    <div className="flex gap-3 w-full">
+                      <label className="flex-1 flex flex-col items-center justify-center gap-2 p-6 bg-slate-50 border-2 border-dashed border-slate-200 rounded-2xl cursor-pointer hover:bg-blue-50 hover:border-blue-200 transition-all group">
+                        <Camera className="w-6 h-6 text-slate-400 group-hover:text-blue-500" />
+                        <span className="text-[10px] font-black text-slate-400 uppercase group-hover:text-blue-600">Chụp ảnh</span>
+                        <input type="file" accept="image/*" capture="environment" className="hidden" onChange={handleImageChange} />
+                      </label>
+                      <label className="flex-1 flex flex-col items-center justify-center gap-2 p-6 bg-slate-50 border-2 border-dashed border-slate-200 rounded-2xl cursor-pointer hover:bg-blue-50 hover:border-blue-200 transition-all group">
+                        <Image className="w-6 h-6 text-slate-400 group-hover:text-blue-500" />
+                        <span className="text-[10px] font-black text-slate-400 uppercase group-hover:text-blue-600">Chọn từ thư viện</span>
+                        <input type="file" accept="image/*" className="hidden" onChange={handleImageChange} />
+                      </label>
+                    </div>
+                  ) : (
+                    <div className="relative w-full max-w-[200px] aspect-square rounded-2xl overflow-hidden border-4 border-white shadow-xl group">
+                      <img src={postImage} alt="Ảnh sau xử lý" className="w-full h-full object-cover" />
+                      <button 
+                        onClick={() => setPostImage(null)}
+                        className="absolute top-2 right-2 p-1.5 bg-black/50 text-white rounded-full hover:bg-rose-500 transition-all"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
 
             <div className="flex gap-3">
@@ -280,8 +361,9 @@ const ActionPlanEditor: React.FC<ActionPlanEditorProps> = ({ gasUrl, currentUnit
                     onClick={() => {
                       setSelectedItem(item);
                       setActionPlan(item.actionPlan || '');
-                      setProcessedDate(item.processedDate || '');
+                      setProcessedDate(formatToInputDate(item.processedDate));
                       setPostTemp(item.postTemp?.toString() || '');
+                      setPostImage(item.postImage || null);
                     }}
                     className="w-full text-left p-4 bg-white border border-slate-100 rounded-2xl hover:border-blue-200 hover:shadow-md transition-all group relative overflow-hidden"
                   >
@@ -295,21 +377,26 @@ const ActionPlanEditor: React.FC<ActionPlanEditorProps> = ({ gasUrl, currentUnit
                     <p className="text-[10px] text-slate-400 font-medium mb-1">Loại: {item.inspectionType}</p>
                     <div className="flex items-center justify-between">
                       <p className="text-[10px] text-slate-400 font-medium">Ngày đo: {formatDate(item.date)}</p>
-                      <div className="flex gap-2">
+                      <div className="flex flex-wrap gap-2">
                         {item.processedDate ? (
-                          <span className="text-[9px] font-black text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full flex items-center gap-1">
+                          <span className="text-[9px] font-black text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full flex items-center gap-1 border border-blue-100">
                             <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg>
-                            Xử lý: {formatDate(item.processedDate)}
+                            Ngày xử lý: {formatDate(item.processedDate)}
                           </span>
                         ) : item.actionPlan ? (
-                          <span className="text-[9px] font-black text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full flex items-center gap-1">
+                          <span className="text-[9px] font-black text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full flex items-center gap-1 border border-emerald-100">
                             <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg>
                             Đã lập KH
                           </span>
                         ) : (
-                          <span className="text-[9px] font-black text-orange-500 bg-orange-50 px-2 py-0.5 rounded-full flex items-center gap-1">
+                          <span className="text-[9px] font-black text-orange-500 bg-orange-50 px-2 py-0.5 rounded-full flex items-center gap-1 border border-orange-100">
                             <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" /></svg>
                             Chưa lập KH
+                          </span>
+                        )}
+                        {item.postTemp && (
+                          <span className="text-[9px] font-black text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full flex items-center gap-1 border border-emerald-100">
+                            Sau xử lý: {item.postTemp}°C
                           </span>
                         )}
                       </div>

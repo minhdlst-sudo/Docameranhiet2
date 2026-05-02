@@ -49,19 +49,23 @@ const DataViewer: React.FC<DataViewerProps> = ({ gasUrl, currentUnit, onBack }) 
   // Hàm định dạng ngày tháng tiếng Việt
   const formatDate = (dateStr: string | undefined) => {
     if (!dateStr) return 'N/A';
+    
+    // 1. Thử parse DD/MM/YYYY (Ưu tiên định dạng VN/GG Sheets)
+    const parts = String(dateStr).split('/');
+    if (parts.length === 3) {
+      const d = parseInt(parts[0]);
+      const m = parseInt(parts[1]) - 1;
+      const y = parseInt(parts[2]);
+      const newDate = new Date(y, m, d);
+      if (!isNaN(newDate.getTime())) return newDate.toLocaleDateString('vi-VN');
+    }
+
+    // 2. Sử dụng Date object để parse các định dạng khác
     const date = new Date(dateStr);
     if (isNaN(date.getTime())) {
-      // Thử parse nếu định dạng là DD/MM/YYYY
-      const parts = dateStr.split('/');
-      if (parts.length === 3) {
-        const d = parseInt(parts[0]);
-        const m = parseInt(parts[1]) - 1;
-        const y = parseInt(parts[2]);
-        const newDate = new Date(y, m, d);
-        if (!isNaN(newDate.getTime())) return newDate.toLocaleDateString('vi-VN');
-      }
       return dateStr;
     }
+    // Trả về định dạng ngày ĐỊA PHƯƠNG để tránh lệch múi giờ
     return date.toLocaleDateString('vi-VN');
   };
 
@@ -502,6 +506,25 @@ const DataViewer: React.FC<DataViewerProps> = ({ gasUrl, currentUnit, onBack }) 
                             {item.postTemp ? `${item.postTemp}°C` : 'Chưa cập nhật'}
                           </p>
                         </div>
+                        {item.postImage && (
+                          <div className="col-span-full pt-2">
+                            <p className="text-[9px] text-slate-400 uppercase font-bold mb-1">Ảnh sau xử lý:</p>
+                            <button 
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                handleOpenImage(item.postImage!);
+                              }}
+                              className="w-16 h-16 rounded-xl bg-slate-100 overflow-hidden border-2 border-white shadow-sm hover:ring-2 hover:ring-blue-500 transition-all active:scale-95"
+                            >
+                              <img 
+                                src={getDirectImageUrl(item.postImage, 'thumbnail', 300)} 
+                                alt="ẢNH SAU XỬ LÝ" 
+                                className="w-full h-full object-cover"
+                              />
+                            </button>
+                          </div>
+                        )}
                       </div>
                     </div>
                   )}
