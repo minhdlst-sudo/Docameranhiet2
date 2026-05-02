@@ -20,6 +20,7 @@ const Dashboard: React.FC<DashboardProps> = ({ gasUrl, currentUnit, onBack }) =>
   const [selectedStatUnit, setSelectedStatUnit] = useState<string>(currentUnit);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
 
   const units = useMemo(() => {
     return ['Toàn Công ty', ...Object.keys(UNIT_FEEDERS)];
@@ -79,7 +80,7 @@ const Dashboard: React.FC<DashboardProps> = ({ gasUrl, currentUnit, onBack }) =>
     return date.toLocaleDateString('vi-VN');
   };
 
-  const getDirectImageUrl = (url: string | null) => {
+  const getDirectImageUrl = (url: string | null, size: number = 300) => {
     if (!url) return '';
     const cleanUrl = url.trim();
     if (cleanUrl.startsWith('data:')) return cleanUrl;
@@ -92,7 +93,7 @@ const Dashboard: React.FC<DashboardProps> = ({ gasUrl, currentUnit, onBack }) =>
                       [/^[-\w]{25,}$/.test(cleanUrl) ? {1: cleanUrl} : null][0];
       const id = idMatch ? idMatch[1] : null;
       if (id) {
-        return `https://drive.google.com/thumbnail?id=${id}&sz=s300`;
+        return `https://drive.google.com/thumbnail?id=${id}&sz=s${size}`;
       }
     }
     return cleanUrl;
@@ -441,13 +442,20 @@ const Dashboard: React.FC<DashboardProps> = ({ gasUrl, currentUnit, onBack }) =>
                           {item.postImage && (
                             <div className="flex items-center gap-2 pt-1 border-t border-black/5 mt-1">
                               <span className="text-slate-400 text-[8px] uppercase font-black tracking-tighter">Ảnh sau xử lý:</span>
-                              <div className="w-8 h-8 rounded-lg bg-slate-100 overflow-hidden border border-black/5">
+                              <button 
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  setSelectedImage(item.postImage!);
+                                }}
+                                className="w-10 h-10 rounded-lg bg-slate-100 overflow-hidden border-2 border-white shadow-sm active:scale-95 transition-transform hover:ring-2 hover:ring-blue-500"
+                              >
                                 <img 
-                                  src={getDirectImageUrl(item.postImage)} 
+                                  src={getDirectImageUrl(item.postImage, 300)} 
                                   alt="Post" 
                                   className="w-full h-full object-cover"
                                 />
-                              </div>
+                              </button>
                             </div>
                           )}
                         </div>
@@ -481,6 +489,42 @@ const Dashboard: React.FC<DashboardProps> = ({ gasUrl, currentUnit, onBack }) =>
           </div>
         </div>
       )}
+
+      {selectedImage && (
+        <ImageModal 
+          imageUrl={selectedImage} 
+          onClose={() => setSelectedImage(null)} 
+          getDirectImageUrl={getDirectImageUrl}
+        />
+      )}
+    </div>
+  );
+};
+
+const ImageModal: React.FC<{ imageUrl: string, onClose: () => void, getDirectImageUrl: (url: string, size: number) => string }> = ({ imageUrl, onClose, getDirectImageUrl }) => {
+  return (
+    <div 
+      className="fixed inset-0 z-[999] bg-black/90 backdrop-blur-sm flex items-center justify-center p-4 animate-fadeIn"
+      onClick={onClose}
+    >
+      <div className="relative max-w-full max-h-full">
+        <button 
+          onClick={onClose}
+          className="absolute -top-12 right-0 p-2 text-white/70 hover:text-white transition-colors"
+        >
+          <ArrowLeft className="w-6 h-6 rotate-90" />
+          <span className="text-xs font-bold uppercase ml-2">Đóng</span>
+        </button>
+        <img 
+          src={getDirectImageUrl(imageUrl, 1200)} 
+          alt="Ảnh phóng to" 
+          className="max-w-full max-h-[85vh] rounded-2xl shadow-2xl border-4 border-white/10"
+          onClick={(e) => e.stopPropagation()}
+        />
+        <div className="mt-4 text-center">
+          <p className="text-white/50 text-[10px] font-black uppercase tracking-widest">Xem ảnh chi tiết</p>
+        </div>
+      </div>
     </div>
   );
 };
