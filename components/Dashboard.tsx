@@ -79,6 +79,25 @@ const Dashboard: React.FC<DashboardProps> = ({ gasUrl, currentUnit, onBack }) =>
     return date.toLocaleDateString('vi-VN');
   };
 
+  const getDirectImageUrl = (url: string | null) => {
+    if (!url) return '';
+    const cleanUrl = url.trim();
+    if (cleanUrl.startsWith('data:')) return cleanUrl;
+    
+    // Xử lý link Google Drive
+    if (cleanUrl.includes('drive.google.com') || /^[-\w]{25,}$/.test(cleanUrl)) {
+      const idMatch = cleanUrl.match(/\/d\/([-\w]{20,})/) || 
+                      cleanUrl.match(/[?&]id=([-\w]{20,})/) ||
+                      cleanUrl.match(/\/file\/d\/([-\w]{20,})/) ||
+                      [/^[-\w]{25,}$/.test(cleanUrl) ? {1: cleanUrl} : null][0];
+      const id = idMatch ? idMatch[1] : null;
+      if (id) {
+        return `https://drive.google.com/thumbnail?id=${id}&sz=s300`;
+      }
+    }
+    return cleanUrl;
+  };
+
   const getWarningLevel = (measured: number, reference: number) => {
     const diff = measured - reference;
     if (measured > 75) return 'Nguy cấp';
@@ -424,7 +443,7 @@ const Dashboard: React.FC<DashboardProps> = ({ gasUrl, currentUnit, onBack }) =>
                               <span className="text-slate-400 text-[8px] uppercase font-black tracking-tighter">Ảnh sau xử lý:</span>
                               <div className="w-8 h-8 rounded-lg bg-slate-100 overflow-hidden border border-black/5">
                                 <img 
-                                  src={item.postImage.startsWith('data:') ? item.postImage : `https://drive.google.com/thumbnail?id=${item.postImage}&sz=s300`} 
+                                  src={getDirectImageUrl(item.postImage)} 
                                   alt="Post" 
                                   className="w-full h-full object-cover"
                                 />

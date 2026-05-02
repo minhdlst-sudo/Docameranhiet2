@@ -76,6 +76,33 @@ const ActionPlanEditor: React.FC<ActionPlanEditorProps> = ({ gasUrl, currentUnit
     return '';
   };
 
+  // Hàm lấy ID Google Drive
+  const getDriveId = (url: string | null) => {
+    if (!url) return null;
+    const cleanUrl = url.trim();
+    const idMatch = cleanUrl.match(/\/d\/([-\w]{20,})/) || 
+                    cleanUrl.match(/[?&]id=([-\w]{20,})/) ||
+                    cleanUrl.match(/\/file\/d\/([-\w]{20,})/);
+    return idMatch ? idMatch[1] : null;
+  };
+
+  // Hàm chuyển đổi link Google Drive sang link trực tiếp để hiển thị trong thẻ img
+  const getDirectImageUrl = (url: string | null) => {
+    if (!url) return '';
+    const cleanUrl = url.trim();
+    if (cleanUrl.startsWith('data:')) return cleanUrl;
+    
+    // Xử lý link Google Drive
+    if (cleanUrl.includes('drive.google.com') || /^[-\w]{25,}$/.test(cleanUrl)) {
+      const id = cleanUrl.includes('drive.google.com') ? getDriveId(cleanUrl) : cleanUrl;
+      if (id) {
+        return `https://drive.google.com/thumbnail?id=${id}&sz=s1200`;
+      }
+    }
+    
+    return cleanUrl;
+  };
+
   const loadData = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -157,7 +184,8 @@ const ActionPlanEditor: React.FC<ActionPlanEditorProps> = ({ gasUrl, currentUnit
     const file = e.target.files?.[0];
     if (file) {
       if (file.size > 2 * 1024 * 1024) {
-        alert('Kích thước ảnh quá lớn (tối đa 2MB)');
+        setError('Kích thước ảnh quá lớn (tối đa 2MB)');
+        setTimeout(() => setError(null), 3000);
         return;
       }
       const reader = new FileReader();
@@ -270,7 +298,7 @@ const ActionPlanEditor: React.FC<ActionPlanEditorProps> = ({ gasUrl, currentUnit
                     </div>
                   ) : (
                     <div className="relative w-full max-w-[200px] aspect-square rounded-2xl overflow-hidden border-4 border-white shadow-xl group">
-                      <img src={postImage} alt="Ảnh sau xử lý" className="w-full h-full object-cover" />
+                      <img src={getDirectImageUrl(postImage)} alt="Ảnh sau xử lý" className="w-full h-full object-cover" />
                       <button 
                         onClick={() => setPostImage(null)}
                         className="absolute top-2 right-2 p-1.5 bg-black/50 text-white rounded-full hover:bg-rose-500 transition-all"

@@ -10,6 +10,7 @@ export const submitThermalData = async (gasUrl: string, data: ThermalData): Prom
   // Thêm dấu nháy đơn (') vào trước các trường text dễ bị GG Sheet hiểu lầm là ngày tháng (VD: 12/5)
   const payload = {
     action: 'submitThermal',
+    sheetName: 'data',
     ...data,
     deviceLocation: `'${data.deviceLocation}`,
     stationName: `'${data.stationName}`,
@@ -18,6 +19,10 @@ export const submitThermalData = async (gasUrl: string, data: ThermalData): Prom
     processedDate: data.processedDate ? `'${data.processedDate}` : '',
     postTemp: data.postTemp !== undefined ? Number(data.postTemp) : '',
     postImage: data.postImage || '',
+    image3: data.postImage || '',
+    photoAfter: data.postImage || '',
+    postImageFolderId: '1WMOsFF6Kfq7ewqS3nXBbpAv2QWGfzjtQ',
+    folderId: '1WMOsFF6Kfq7ewqS3nXBbpAv2QWGfzjtQ',
     measuredTemp: Number(data.measuredTemp),
     referenceTemp: Number(data.referenceTemp),
     ambientTemp: Number(data.ambientTemp),
@@ -184,52 +189,37 @@ export const updateActionPlan = async (gasUrl: string, data: {
 
   const payload = {
     action: 'updateActionPlan',
+    sheetName: 'data', 
     stationName: data.stationName,
     deviceLocation: data.deviceLocation,
     date: data.date,
     actionPlan: data.actionPlan,
-    processedDate: data.processedDate,
-    postTemp: data.postTemp,
-    postImage: data.postImage
+    processedDate: data.processedDate || '',
+    postTemp: data.postTemp !== undefined ? data.postTemp : '',
+    // Gửi ảnh theo nhiều key khác nhau để tương thích với các phiên bản script
+    postImage: data.postImage || '',    // Key 1
+    image3: data.postImage || '',       // Key 2 (Common in templates)
+    photoAfter: data.postImage || '',   // Key 3
+    postImageFolderId: '1WMOsFF6Kfq7ewqS3nXBbpAv2QWGfzjtQ', // Folder ID do user cung cấp
+    folderId: '1WMOsFF6Kfq7ewqS3nXBbpAv2QWGfzjtQ'           // Key dự phòng cho Folder ID
   };
 
   try {
-    const response = await fetch(gasUrl, {
+    // Sử dụng mode 'no-cors' tương tự như submitThermalData để đảm bảo gửi được dữ liệu lớn (Base64) 
+    // đến Google Apps Script mà không bị chặn bởi CORS policy của trình duyệt.
+    await fetch(gasUrl, {
       method: 'POST',
+      mode: 'no-cors',
       headers: {
         'Content-Type': 'text/plain;charset=utf-8',
       },
       body: JSON.stringify(payload),
     });
 
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-
-    const text = await response.text();
-    let result;
-    try {
-      result = JSON.parse(text);
-    } catch (e) {
-      // Nếu không parse được JSON, có thể GAS trả về trang lỗi HTML hoặc chuỗi thuần
-      if (text.includes('"success":true')) {
-        result = { success: true };
-      } else {
-        throw new Error('Phản hồi từ máy chủ không đúng định dạng JSON.');
-      }
-    }
-    
-    if (result.success) {
-      return { 
-        success: true, 
-        message: 'Kế hoạch xử lý đã được cập nhật thành công!' 
-      };
-    } else {
-      return {
-        success: false,
-        message: result.message || result.error || 'Không tìm thấy dữ liệu khớp để cập nhật. Vui lòng kiểm tra lại.'
-      };
-    }
+    return { 
+      success: true, 
+      message: 'Yêu cầu cập nhật đã được gửi đi! Dữ liệu sẽ được xử lý sau vài giây.' 
+    };
   } catch (error) {
     console.error('Lỗi cập nhật kế hoạch xử lý:', error);
     return { 
