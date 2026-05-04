@@ -4,9 +4,10 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
   PieChart, Pie, Cell, Legend, LabelList
 } from 'recharts';
+import * as XLSX from 'xlsx';
 import { ThermalData } from '../types';
 import { fetchThermalData } from '../services/gasService';
-import { BarChart3, PieChart as PieChartIcon, ArrowLeft, RefreshCw, Calendar, ClipboardList, CheckCircle2, AlertTriangle, Building2, ChevronDown, AlertCircle } from 'lucide-react';
+import { BarChart3, PieChart as PieChartIcon, ArrowLeft, RefreshCw, Calendar, ClipboardList, CheckCircle2, AlertTriangle, Building2, ChevronDown, AlertCircle, Download } from 'lucide-react';
 import { UNIT_FEEDERS } from '../constants';
 
 interface DashboardProps {
@@ -195,6 +196,59 @@ const Dashboard: React.FC<DashboardProps> = ({ gasUrl, currentUnit, onBack }) =>
     });
   }, [data]);
 
+  const exportToExcel = () => {
+    if (defectiveLocations.length === 0) {
+      alert('Không có dữ liệu khiếm khuyết để xuất!');
+      return;
+    }
+
+    const exportData = defectiveLocations.map((item, index) => {
+      const level = getWarningLevel(Number(item.measuredTemp), Number(item.referenceTemp));
+      return {
+        'STT': index + 1,
+        'Đơn vị': item.unit,
+        'Trạm/Nhánh': item.stationName,
+        'Xuất tuyến': item.feeder,
+        'Vị trí': item.deviceLocation,
+        'Pha': item.phase,
+        'Nhiệt độ đo (°C)': item.measuredTemp,
+        'Nhiệt độ TC (°C)': item.referenceTemp,
+        'Chênh lệch ΔT (°C)': (Number(item.measuredTemp) - Number(item.referenceTemp)).toFixed(1),
+        'Mức độ': level,
+        'Ngày đo': formatDate(item.date),
+        'Kế hoạch xử lý': item.actionPlan || '',
+        'Ngày đã xử lý': item.processedDate ? formatDate(item.processedDate) : '',
+        'Nhiệt độ sau xử lý (°C)': item.postTemp || ''
+      };
+    });
+
+    const worksheet = XLSX.utils.json_to_sheet(exportData);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Khiem khuyet");
+
+    // Đặt độ rộng cột
+    const wscols = [
+      { wch: 5 },  // STT
+      { wch: 15 }, // Đơn vị
+      { wch: 25 }, // Trạm/Nhánh
+      { wch: 20 }, // Xuất tuyến
+      { wch: 20 }, // Vị trí
+      { wch: 10 }, // Pha
+      { wch: 18 }, // Nhiệt độ đo
+      { wch: 18 }, // Nhiệt độ TC
+      { wch: 18 }, // Chênh lệch
+      { wch: 15 }, // Mức độ
+      { wch: 15 }, // Ngày đo
+      { wch: 30 }, // Kế hoạch xử lý
+      { wch: 15 }, // Ngày đã xử lý
+      { wch: 18 }  // Nhiệt độ sau xử lý
+    ];
+    worksheet['!cols'] = wscols;
+
+    const fileName = `Danh_sach_khiem_khuyet_${selectedStatUnit.replace(/\s+/g, '_')}_${new Date().toLocaleDateString('vi-VN').replace(/\//g, '-')}.xlsx`;
+    XLSX.writeFile(workbook, fileName);
+  };
+
   return (
     <div className="bg-white p-4 sm:p-6 rounded-3xl shadow-xl border border-slate-100 animate-fadeIn space-y-8">
       <div className="flex items-center justify-between">
@@ -381,6 +435,15 @@ const Dashboard: React.FC<DashboardProps> = ({ gasUrl, currentUnit, onBack }) =>
                 <AlertCircle className="w-4 h-4 text-rose-500" />
                 <h3 className="text-xs font-black text-slate-800 uppercase tracking-wider">Danh sách vị trí khiếm khuyết ({defectiveLocations.length})</h3>
               </div>
+              {defectiveLocations.length > 0 && (
+                <button 
+                  onClick={exportToExcel}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 text-emerald-600 rounded-xl text-[10px] font-black uppercase tracking-wider hover:bg-emerald-100 transition-all shadow-sm active:scale-95"
+                >
+                  <Download className="w-3 h-3" />
+                  <span>Xuất Excel</span>
+                </button>
+              )}
             </div>
 
             {defectiveLocations.length === 0 ? (
