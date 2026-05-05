@@ -19,6 +19,8 @@ interface DashboardProps {
 const Dashboard: React.FC<DashboardProps> = ({ gasUrl, currentUnit, onBack }) => {
   const [allData, setAllData] = useState<ThermalData[]>([]);
   const [selectedStatUnit, setSelectedStatUnit] = useState<string>(currentUnit);
+  const [selectedMonth, setSelectedMonth] = useState<number>(new Date().getMonth() + 1);
+  const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
@@ -26,6 +28,10 @@ const Dashboard: React.FC<DashboardProps> = ({ gasUrl, currentUnit, onBack }) =>
   const units = useMemo(() => {
     return ['Toàn Công ty', ...Object.keys(UNIT_FEEDERS)];
   }, []);
+
+  const years = [2026, 2027, 2028];
+
+  const months = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -51,12 +57,83 @@ const Dashboard: React.FC<DashboardProps> = ({ gasUrl, currentUnit, onBack }) =>
     loadData();
   }, [loadData]);
 
+  // Dữ liệu lọc theo Tháng/Năm
+  const timeFilteredData = useMemo(() => {
+    return allData.filter(item => {
+      const date = new Date(item.date);
+      return date.getMonth() + 1 === selectedMonth && date.getFullYear() === selectedYear;
+    });
+  }, [allData, selectedMonth, selectedYear]);
+
+  // Dữ liệu hiển thị dựa trên đơn vị và thời gian
   const data = useMemo(() => {
     if (selectedStatUnit === 'Toàn Công ty') {
-      return allData;
+      return timeFilteredData;
     }
-    return allData.filter(item => item.unit === selectedStatUnit);
-  }, [allData, selectedStatUnit]);
+    return timeFilteredData.filter(item => item.unit === selectedStatUnit);
+  }, [timeFilteredData, selectedStatUnit]);
+
+  // Bảng tổng hợp theo đơn vị
+  const unitSummaryDataTable = useMemo(() => {
+    const tableData: any[] = [];
+    const actualUnits = Object.keys(UNIT_FEEDERS);
+
+    let companyTotal = 0;
+    let companyDefects = 0;
+    let companyPlanned = 0;
+    let companyProcessed = 0;
+
+    actualUnits.forEach(unit => {
+      const unitData = timeFilteredData.filter(item => item.unit === unit);
+      let defects = 0;
+      let planned = 0;
+      let processed = 0;
+
+      unitData.forEach(item => {
+        const measured = Number(item.measuredTemp);
+        const diff = measured - Number(item.referenceTemp);
+        const isDefect = diff > 15 || measured > 75;
+        
+        if (isDefect) {
+          defects++;
+          if (item.actionPlan && item.actionPlan.trim() !== "") {
+            planned++;
+          }
+          if (item.processedDate && item.processedDate.trim() !== "") {
+            processed++;
+          }
+        }
+      });
+
+      companyTotal += unitData.length;
+      companyDefects += defects;
+      companyPlanned += planned;
+      companyProcessed += processed;
+
+      tableData.push({
+        unit,
+        total: unitData.length,
+        defects,
+        planned,
+        processed
+      });
+    });
+
+    const sortedData = tableData.sort((a, b) => b.total - a.total);
+    
+    // Thêm dòng tổng vào vị trí đầu tiên
+    return [
+      {
+        unit: 'Toàn Công ty',
+        total: companyTotal,
+        defects: companyDefects,
+        planned: companyPlanned,
+        processed: companyProcessed,
+        isTotal: true
+      },
+      ...sortedData
+    ];
+  }, [timeFilteredData]);
 
   // Hàm định dạng ngày tháng tiếng Việt
   const formatDate = (dateStr: string | undefined) => {
@@ -107,28 +184,33 @@ const Dashboard: React.FC<DashboardProps> = ({ gasUrl, currentUnit, onBack }) =>
     return 'Bình thường';
   };
 
-  // Dữ liệu cho biểu đồ cột (Theo tháng trong năm hiện tại)
+  // Dữ liệu cho biểu đồ cột (Theo tháng trong năm được chọn)
   const monthlyData = useMemo(() => {
-    const currentYear = new Date().getFullYear();
-    const months = [
+    const monthsNames = [
       'Th1', 'Th2', 'Th3', 'Th4', 'Th5', 'Th6', 
       'Th7', 'Th8', 'Th9', 'Th10', 'Th11', 'Th12'
     ];
     
     const counts = new Array(12).fill(0);
     
-    data.forEach(item => {
+    // Đếm tất cả dữ liệu của đơn vị đã chọn trong năm đã chọn
+    const unitFilteredData = selectedStatUnit === 'Toàn Công ty' 
+      ? allData 
+      : allData.filter(item => item.unit === selectedStatUnit);
+
+    unitFilteredData.forEach(item => {
       const date = new Date(item.date);
-      if (date.getFullYear() === currentYear) {
+      if (date.getFullYear() === selectedYear) {
         counts[date.getMonth()]++;
       }
     });
 
-    return months.map((name, index) => ({
+    return monthsNames.map((name, index) => ({
       name,
-      count: isNaN(counts[index]) ? 0 : counts[index]
+      count: isNaN(counts[index]) ? 0 : counts[index],
+      isCurrent: index + 1 === selectedMonth
     }));
-  }, [data]);
+  }, [allData, selectedYear, selectedStatUnit, selectedMonth]);
 
   // Dữ liệu cho biểu đồ tròn (Mức độ cảnh báo)
   const warningData = useMemo(() => {
@@ -258,18 +340,47 @@ const Dashboard: React.FC<DashboardProps> = ({ gasUrl, currentUnit, onBack }) =>
           </div>
           <div className="min-w-0">
             <h2 className="text-sm sm:text-lg font-black text-slate-800 truncate">Thống kê dữ liệu</h2>
-            <div className="relative mt-1 group">
-              <select 
-                value={selectedStatUnit}
-                onChange={(e) => setSelectedStatUnit(e.target.value)}
-                className="appearance-none bg-slate-100 border-none rounded-lg py-1 pl-7 pr-8 text-[10px] font-bold text-slate-600 uppercase tracking-tight cursor-pointer focus:ring-2 focus:ring-blue-500 transition-all outline-none w-full sm:w-auto"
-              >
-                {units.map(unit => (
-                  <option key={unit} value={unit}>{unit}</option>
-                ))}
-              </select>
-              <Building2 className="w-3 h-3 text-slate-400 absolute left-2 top-1/2 -translate-y-1/2 pointer-events-none" />
-              <ChevronDown className="w-3 h-3 text-slate-400 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none" />
+            <div className="flex flex-wrap gap-2 mt-1">
+              <div className="relative group">
+                <select 
+                  value={selectedStatUnit}
+                  onChange={(e) => setSelectedStatUnit(e.target.value)}
+                  className="appearance-none bg-slate-100 border-none rounded-lg py-1 pl-7 pr-8 text-[10px] font-bold text-slate-600 uppercase tracking-tight cursor-pointer focus:ring-2 focus:ring-blue-500 transition-all outline-none w-full sm:w-auto"
+                >
+                  {units.map(unit => (
+                    <option key={unit} value={unit}>{unit}</option>
+                  ))}
+                </select>
+                <Building2 className="w-3 h-3 text-slate-400 absolute left-2 top-1/2 -translate-y-1/2 pointer-events-none" />
+                <ChevronDown className="w-3 h-3 text-slate-400 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none" />
+              </div>
+
+              <div className="relative group">
+                <select 
+                  value={selectedMonth}
+                  onChange={(e) => setSelectedMonth(Number(e.target.value))}
+                  className="appearance-none bg-blue-50 border-none rounded-lg py-1 pl-7 pr-8 text-[10px] font-bold text-blue-600 uppercase tracking-tight cursor-pointer focus:ring-2 focus:ring-blue-500 transition-all outline-none w-full sm:w-auto"
+                >
+                  {months.map(m => (
+                    <option key={m} value={m}>Tháng {m}</option>
+                  ))}
+                </select>
+                <Calendar className="w-3 h-3 text-blue-400 absolute left-2 top-1/2 -translate-y-1/2 pointer-events-none" />
+                <ChevronDown className="w-3 h-3 text-blue-400 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none" />
+              </div>
+
+              <div className="relative group">
+                <select 
+                  value={selectedYear}
+                  onChange={(e) => setSelectedYear(Number(e.target.value))}
+                  className="appearance-none bg-blue-50 border-none rounded-lg py-1 pl-2 pr-7 text-[10px] font-bold text-blue-600 uppercase tracking-tight cursor-pointer focus:ring-2 focus:ring-blue-500 transition-all outline-none w-full sm:w-auto"
+                >
+                  {years.map(y => (
+                    <option key={y} value={y}>{y}</option>
+                  ))}
+                </select>
+                <ChevronDown className="w-3 h-3 text-blue-400 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none" />
+              </div>
             </div>
           </div>
         </div>
@@ -319,6 +430,50 @@ const Dashboard: React.FC<DashboardProps> = ({ gasUrl, currentUnit, onBack }) =>
             <div className="p-3 bg-emerald-50 rounded-2xl border border-emerald-100">
               <p className="text-[9px] font-black text-emerald-400 uppercase mb-1">Đã xử lý</p>
               <p className="text-xl font-black text-emerald-600">{defectStatsData[2].value}</p>
+            </div>
+          </div>
+
+          {/* Bảng tổng hợp theo đơn vị */}
+          <div className="space-y-4 pt-4 border-t border-slate-100">
+            <div className="flex items-center gap-2">
+              <Building2 className="w-4 h-4 text-slate-400" />
+              <h3 className="text-xs font-black text-slate-500 uppercase tracking-wider">Tổng hợp theo đơn vị (Tháng {selectedMonth}/{selectedYear})</h3>
+            </div>
+            <div className="overflow-x-auto rounded-2xl border border-slate-100 shadow-sm">
+              <table className="w-full text-left border-collapse bg-white">
+                <thead>
+                  <tr className="bg-slate-50">
+                    <th className="p-3 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">Đơn vị</th>
+                    <th className="p-3 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100 text-center">Tổng vị trí</th>
+                    <th className="p-3 text-[10px] font-black text-rose-400 uppercase tracking-widest border-b border-slate-100 text-center">Khiếm khuyết</th>
+                    <th className="p-3 text-[10px] font-black text-amber-400 uppercase tracking-widest border-b border-slate-100 text-center">Đã lập KH</th>
+                    <th className="p-3 text-[10px] font-black text-emerald-400 uppercase tracking-widest border-b border-slate-100 text-center">Đã xử lý</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-50">
+                  {unitSummaryDataTable.map((row, idx) => (
+                    <tr 
+                      key={idx} 
+                      className={`hover:bg-slate-50 transition-colors ${row.isTotal ? 'bg-blue-50/50 font-black' : ''}`}
+                    >
+                      <td className={`p-3 text-[11px] ${row.isTotal ? 'text-blue-700' : 'font-bold text-slate-700'}`}>
+                        {row.unit}
+                      </td>
+                      <td className="p-3 text-[11px] font-black text-slate-800 text-center">{row.total}</td>
+                      <td className="p-3 text-[11px] font-black text-rose-600 text-center">{row.defects}</td>
+                      <td className="p-3 text-[11px] font-black text-amber-600 text-center">{row.planned}</td>
+                      <td className="p-3 text-[11px] font-black text-emerald-600 text-center">{row.processed}</td>
+                    </tr>
+                  ))}
+                  {unitSummaryDataTable.length === 0 && (
+                    <tr>
+                      <td colSpan={5} className="p-8 text-center text-[10px] font-bold text-slate-400 italic">
+                        Không có dữ liệu trong tháng này
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
             </div>
           </div>
 
@@ -381,7 +536,14 @@ const Dashboard: React.FC<DashboardProps> = ({ gasUrl, currentUnit, onBack }) =>
                     cursor={{ fill: '#f1f5f9' }}
                     contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
                   />
-                  <Bar dataKey="count" fill="#3b82f6" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="count" radius={[4, 4, 0, 0]}>
+                    {monthlyData.map((entry, index) => (
+                      <Cell 
+                        key={`cell-${index}`} 
+                        fill={entry.isCurrent ? '#2563eb' : '#93c5fd'} 
+                      />
+                    ))}
+                  </Bar>
                 </BarChart>
               </ResponsiveContainer>
             </div>
