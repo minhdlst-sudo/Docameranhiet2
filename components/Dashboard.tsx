@@ -19,7 +19,7 @@ interface DashboardProps {
 const Dashboard: React.FC<DashboardProps> = ({ gasUrl, currentUnit, onBack }) => {
   const [allData, setAllData] = useState<ThermalData[]>([]);
   const [selectedStatUnit, setSelectedStatUnit] = useState<string>(currentUnit);
-  const [selectedMonth, setSelectedMonth] = useState<number>(new Date().getMonth() + 1);
+  const [selectedMonth, setSelectedMonth] = useState<number>(0); // 0 for All Months
   const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -61,7 +61,9 @@ const Dashboard: React.FC<DashboardProps> = ({ gasUrl, currentUnit, onBack }) =>
   const timeFilteredData = useMemo(() => {
     return allData.filter(item => {
       const date = new Date(item.date);
-      return date.getMonth() + 1 === selectedMonth && date.getFullYear() === selectedYear;
+      const yearMatch = date.getFullYear() === selectedYear;
+      const monthMatch = selectedMonth === 0 || date.getMonth() + 1 === selectedMonth;
+      return yearMatch && monthMatch;
     });
   }, [allData, selectedMonth, selectedYear]);
 
@@ -331,6 +333,40 @@ const Dashboard: React.FC<DashboardProps> = ({ gasUrl, currentUnit, onBack }) =>
     XLSX.writeFile(workbook, fileName);
   };
 
+  const exportSummaryToExcel = () => {
+    if (unitSummaryDataTable.length === 0) {
+      alert('Không có dữ liệu tổng hợp để xuất!');
+      return;
+    }
+
+    const exportData = unitSummaryDataTable.map((row) => ({
+      'Đơn vị': row.unit,
+      'Tổng vị trí đo': row.total,
+      'Số lượng khiếm khuyết': row.defects,
+      'Đã lập kế hoạch': row.planned,
+      'Đã xử lý': row.processed,
+      'Tỷ lệ đã xử lý (%)': row.defects > 0 ? ((row.processed / row.defects) * 100).toFixed(1) : '100'
+    }));
+
+    const worksheet = XLSX.utils.json_to_sheet(exportData);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Tong hop don vi");
+
+    // Đặt độ rộng cột
+    const wscols = [
+      { wch: 25 }, // Đơn vị
+      { wch: 15 }, // Tổng vị trí
+      { wch: 20 }, // Khiếm khuyết
+      { wch: 18 }, // Đã lập KH
+      { wch: 15 }, // Đã xử lý
+      { wch: 20 }  // Tỷ lệ
+    ];
+    worksheet['!cols'] = wscols;
+
+    const fileName = `Tong_hop_don_vi_${selectedMonth === 0 ? 'Ca_nam' : `Thang_${selectedMonth}`}_${selectedYear}.xlsx`;
+    XLSX.writeFile(workbook, fileName);
+  };
+
   return (
     <div className="bg-white p-4 sm:p-6 rounded-3xl shadow-xl border border-slate-100 animate-fadeIn space-y-8">
       <div className="flex items-center justify-between">
@@ -361,6 +397,7 @@ const Dashboard: React.FC<DashboardProps> = ({ gasUrl, currentUnit, onBack }) =>
                   onChange={(e) => setSelectedMonth(Number(e.target.value))}
                   className="appearance-none bg-blue-50 border-none rounded-lg py-1 pl-7 pr-8 text-[10px] font-bold text-blue-600 uppercase tracking-tight cursor-pointer focus:ring-2 focus:ring-blue-500 transition-all outline-none w-full sm:w-auto"
                 >
+                  <option value={0}>Tất cả các tháng</option>
                   {months.map(m => (
                     <option key={m} value={m}>Tháng {m}</option>
                   ))}
@@ -435,9 +472,22 @@ const Dashboard: React.FC<DashboardProps> = ({ gasUrl, currentUnit, onBack }) =>
 
           {/* Bảng tổng hợp theo đơn vị */}
           <div className="space-y-4 pt-4 border-t border-slate-100">
-            <div className="flex items-center gap-2">
-              <Building2 className="w-4 h-4 text-slate-400" />
-              <h3 className="text-xs font-black text-slate-500 uppercase tracking-wider">Tổng hợp theo đơn vị (Tháng {selectedMonth}/{selectedYear})</h3>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Building2 className="w-4 h-4 text-slate-400" />
+                <h3 className="text-xs font-black text-slate-500 uppercase tracking-wider">
+                  Tổng hợp theo đơn vị ({selectedMonth === 0 ? `Năm ${selectedYear}` : `Tháng ${selectedMonth}/${selectedYear}`})
+                </h3>
+              </div>
+              {unitSummaryDataTable.length > 0 && (
+                <button 
+                  onClick={exportSummaryToExcel}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 text-blue-600 rounded-xl text-[10px] font-black uppercase tracking-wider hover:bg-blue-100 transition-all shadow-sm active:scale-95"
+                >
+                  <Download className="w-3 h-3" />
+                  <span>Xuất Excel</span>
+                </button>
+              )}
             </div>
             <div className="overflow-x-auto rounded-2xl border border-slate-100 shadow-sm">
               <table className="w-full text-left border-collapse bg-white">
