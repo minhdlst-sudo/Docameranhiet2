@@ -51,11 +51,23 @@ const NotificationScanner: React.FC<NotificationScannerProps> = ({ gasUrl, onCri
   const sendBrowserNotification = (count: number) => {
     if (!("Notification" in window)) return;
 
+    const title = "CẢNH BÁO NGUY CẤP";
+    const options = {
+      body: `Phát hiện ${count} vị trí có nhiệt độ bất thường chưa được xử lý!`,
+      icon: "/favicon.ico",
+      badge: "/favicon.ico",
+      vibrate: [200, 100, 200]
+    };
+
     if (Notification.permission === "granted") {
-      new Notification("CẢNH BÁO NGUY CẤP", {
-        body: `Phát hiện ${count} vị trí có nhiệt độ bất thường chưa được xử lý!`,
-        icon: "/favicon.ico"
-      });
+      // Try to use service worker registration if available for better mobile support
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.ready.then(registration => {
+          registration.showNotification(title, options);
+        });
+      } else {
+        new Notification(title, options);
+      }
     } else if (Notification.permission !== "denied") {
       Notification.requestPermission().then(permission => {
         if (permission === "granted") {

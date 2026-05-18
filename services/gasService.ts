@@ -59,61 +59,78 @@ export const fetchThermalData = async (gasUrl: string): Promise<ThermalData[]> =
     throw new Error('Chưa cấu hình URL máy chủ dữ liệu.');
   }
   
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 15000); // 15s timeout
+  const maxRetries = 2;
+  let lastError: any;
   
-  try {
-    const timestamp = new Date().getTime();
-    const response = await fetch(`${gasUrl}?action=read&_t=${timestamp}`, {
-      method: 'GET',
-      redirect: 'follow',
-      signal: controller.signal
-    });
+  for (let i = 0; i < maxRetries; i++) {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30000); // Increased to 30s timeout
     
-    clearTimeout(timeoutId);
-    
-    if (!response.ok) {
-      throw new Error(`Máy chủ phản hồi lỗi: ${response.status}`);
-    }
-    
-    const result = await response.json();
-    
-    // Nếu kết quả trả về có success: false
-    if (result && result.success === false) {
-      throw new Error(result.message || 'Máy chủ báo lỗi không xác định.');
-    }
+    try {
+      const timestamp = new Date().getTime();
+      const response = await fetch(`${gasUrl}?action=read&_t=${timestamp}`, {
+        method: 'GET',
+        redirect: 'follow',
+        signal: controller.signal
+      });
+      
+      clearTimeout(timeoutId);
+      
+      if (!response.ok) {
+        throw new Error(`Máy chủ phản hồi lỗi: ${response.status}`);
+      }
+      
+      const result = await response.json();
+      
+      // Nếu kết quả trả về có success: false
+      if (result && result.success === false) {
+        throw new Error(result.message || 'Máy chủ báo lỗi không xác định.');
+      }
 
-    let rawData: ThermalData[] = [];
-    
-    if (Array.isArray(result)) {
-      rawData = result;
-    } else if (result && Array.isArray(result.data)) {
-      rawData = result.data;
-    } else if (result && Array.isArray(result.rows)) {
-      rawData = result.rows;
-    }
+      let rawData: ThermalData[] = [];
+      
+      if (Array.isArray(result)) {
+        rawData = result;
+      } else if (result && Array.isArray(result.data)) {
+        rawData = result.data;
+      } else if (result && Array.isArray(result.rows)) {
+        rawData = result.rows;
+      }
 
-    // Làm sạch dữ liệu: Loại bỏ dấu nháy đơn (') ở đầu chuỗi nếu có (do chúng ta thêm vào để tránh lỗi định dạng GG Sheet)
-    return rawData.map(item => ({
-      ...item,
-      deviceLocation: item.deviceLocation?.toString().startsWith("'") ? item.deviceLocation.toString().substring(1) : item.deviceLocation,
-      stationName: item.stationName?.toString().startsWith("'") ? item.stationName.toString().substring(1) : item.stationName,
-      feeder: item.feeder?.toString().startsWith("'") ? item.feeder.toString().substring(1) : item.feeder,
-      actionPlan: item.actionPlan?.toString().startsWith("'") ? item.actionPlan.toString().substring(1) : item.actionPlan,
-      processedDate: item.processedDate?.toString().startsWith("'") ? item.processedDate.toString().substring(1) : item.processedDate,
-      postTemp: item.postTemp ? Number(item.postTemp) : undefined,
-      postImage: item.postImage,
-      date: item.date?.toString().startsWith("'") ? item.date.toString().substring(1) : item.date,
-      timestamp: item.timestamp,
-    }));
-  } catch (error) {
-    clearTimeout(timeoutId);
-    if ((error as any).name === 'AbortError') {
-      throw new Error('Yêu cầu quá hạn (Timeout). Vui lòng kiểm tra kết nối mạng hoặc URL script.');
+      // Làm sạch dữ liệu: Loại bỏ dấu nháy đơn (') ở đầu chuỗi nếu có (do chúng ta thêm vào để tránh lỗi định dạng GG Sheet)
+      return rawData.map(item => ({
+        ...item,
+        deviceLocation: item.deviceLocation?.toString().startsWith("'") ? item.deviceLocation.toString().substring(1) : item.deviceLocation,
+        stationName: item.stationName?.toString().startsWith("'") ? item.stationName.toString().substring(1) : item.stationName,
+        feeder: item.feeder?.toString().startsWith("'") ? item.feeder.toString().substring(1) : item.feeder,
+        actionPlan: item.actionPlan?.toString().startsWith("'") ? item.actionPlan.toString().substring(1) : item.actionPlan,
+        processedDate: item.processedDate?.toString().startsWith("'") ? item.processedDate.toString().substring(1) : item.processedDate,
+        postTemp: item.postTemp ? Number(item.postTemp) : undefined,
+        postImage: item.postImage,
+        date: item.date?.toString().startsWith("'") ? item.date.toString().substring(1) : item.date,
+        timestamp: item.timestamp,
+      }));
+    } catch (error) {
+      clearTimeout(timeoutId);
+      lastError = error;
+      
+      // Only retry if it's a timeout or network error, not a 404 or other logic error
+      if ((error as any).name === 'AbortError' || (error as any).message?.includes('fetch')) {
+        console.warn(`Fetch attempt ${i + 1} failed, retrying...`, error);
+        // Wait a bit before retrying
+        if (i < maxRetries - 1) {
+          await new Promise(resolve => setTimeout(resolve, 2000));
+          continue;
+        }
+      }
+      break;
     }
-    console.error('Lỗi fetchThermalData:', error);
-    throw error;
   }
+
+  if (lastError && (lastError as any).name === 'AbortError') {
+    throw new Error('Yêu cầu quá hạn (Timeout). Vui lòng kiểm tra kết nối mạng hoặc URL script.');
+  }
+  throw lastError;
 };
 
 export const fetchFeedersFromSheet = async (gasUrl: string): Promise<Record<string, string[]>> => {
