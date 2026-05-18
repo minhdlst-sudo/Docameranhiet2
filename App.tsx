@@ -132,7 +132,10 @@ const App: React.FC = () => {
                     <div key={i} className="bg-white/10 backdrop-blur-md rounded-xl p-2.5 border border-white/10 flex flex-col">
                       <div className="flex justify-between items-start gap-2">
                         <span className="text-white font-black text-[10px] uppercase truncate">{p.stationName}</span>
-                        <span className="text-rose-100 font-black text-[10px] whitespace-nowrap">{p.measuredTemp}°C</span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-white/60 text-[9px] font-bold">{new Date(p.date).toLocaleDateString('vi-VN')}</span>
+                          <span className="text-rose-100 font-black text-[10px] whitespace-nowrap">{p.measuredTemp}°C</span>
+                        </div>
                       </div>
                       <span className="text-rose-100 text-[9px] font-medium">{p.deviceLocation} - {p.phase}</span>
                     </div>

@@ -25,7 +25,7 @@ const NotificationScanner: React.FC<NotificationScannerProps> = ({ gasUrl, onCri
         const isCritical = measured > 75 || diff > 15;
         const isNotProcessed = !item.processedDate || item.processedDate.trim() === '';
         return isCritical && isNotProcessed;
-      });
+      }).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
       setCriticalPoints(criticals);
       
@@ -110,7 +110,10 @@ const NotificationScanner: React.FC<NotificationScannerProps> = ({ gasUrl, onCri
               <div className="space-y-2 mb-4 max-h-60 overflow-y-auto pr-2 custom-scrollbar">
                 {criticalPoints.map((p, i) => (
                   <div key={i} className="flex flex-col p-2 bg-slate-50 rounded-xl border border-slate-100 text-[10px]">
-                    <span className="font-black text-slate-800 uppercase truncate">{p.stationName}</span>
+                    <div className="flex justify-between items-start gap-2">
+                      <span className="font-black text-slate-800 uppercase truncate">{p.stationName}</span>
+                      <span className="text-rose-600 font-bold whitespace-nowrap">{new Date(p.date).toLocaleDateString('vi-VN')}</span>
+                    </div>
                     <span className="text-slate-500 truncate">{p.deviceLocation} - {p.phase} - {p.measuredTemp}°C</span>
                   </div>
                 ))}
