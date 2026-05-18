@@ -96,49 +96,67 @@ const NotificationScanner: React.FC<NotificationScannerProps> = ({ gasUrl, onCri
   return (
     <AnimatePresence>
       {showPopup && (
-        <motion.div 
-          initial={{ opacity: 0, y: 50, scale: 0.9 }}
-          animate={{ opacity: 1, y: 0, scale: 1 }}
-          exit={{ opacity: 0, y: 20, scale: 0.9 }}
-          className="fixed bottom-6 left-6 right-6 sm:left-auto sm:right-6 sm:w-80 z-[100]"
-        >
-          <div className="bg-white rounded-3xl shadow-2xl border-2 border-rose-100 overflow-hidden">
-            <div className="bg-rose-500 p-4 flex items-center justify-between">
-              <div className="flex items-center gap-2 text-white">
-                <ShieldAlert className="w-5 h-5 animate-pulse" />
-                <span className="font-black text-xs uppercase tracking-widest">Cảnh báo khẩn cấp</span>
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setShowPopup(false)}
+            className="absolute inset-0 bg-slate-900/40 backdrop-blur-[2px]"
+          />
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.9, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.9, y: 20 }}
+            className="relative bg-white rounded-[40px] shadow-2xl border border-rose-100 overflow-hidden max-w-sm w-full"
+          >
+            <div className="bg-[#FF1A4D] px-8 py-6 flex items-center justify-between relative">
+              <div className="flex items-center gap-3 text-white">
+                <div className="w-8 h-8 rounded-xl bg-white/20 flex items-center justify-center">
+                  <ShieldAlert className="w-5 h-5" />
+                </div>
+                <span className="font-black text-lg uppercase tracking-tight italic">CẢNH BÁO KHẨN CẤP</span>
               </div>
               <button 
                 onClick={() => setShowPopup(false)}
-                className="text-white/70 hover:text-white transition-colors"
+                className="text-white/80 hover:text-white p-1 hover:bg-white/10 rounded-full transition-all"
               >
-                <X className="w-4 h-4" />
+                <X className="w-6 h-6" />
               </button>
             </div>
-            <div className="p-5">
-              <p className="text-slate-600 text-sm font-bold leading-relaxed mb-4">
-                Hệ thống phát hiện <span className="text-rose-600 font-black">{criticalPoints.length}</span> vị trí khiếm khuyết mức <span className="text-rose-600">Nguy cấp</span> chưa được xử lý.
+            
+            <div className="p-8 space-y-6">
+              <p className="text-slate-800 text-[15px] font-bold leading-relaxed text-center sm:text-left">
+                Hệ thống phát hiện <span className="text-[#FF1A4D] font-black">{criticalPoints.length}</span> vị trí khiếm khuyết mức <span className="text-[#FF1A4D] font-black uppercase">Nguy cấp</span> chưa được xử lý.
               </p>
-              <div className="space-y-2 mb-4 max-h-60 overflow-y-auto pr-2 custom-scrollbar">
+              
+              <div className="space-y-3 max-h-80 overflow-y-auto pr-2 custom-scrollbar">
                 {criticalPoints.map((p, i) => (
-                  <div key={i} className="flex flex-col p-2 bg-slate-50 rounded-xl border border-slate-100 text-[10px]">
-                    <div className="flex justify-between items-start gap-2">
-                      <span className="font-black text-slate-800 uppercase truncate">{p.stationName}</span>
-                      <span className="text-rose-600 font-bold whitespace-nowrap">{new Date(p.date).toLocaleDateString('vi-VN')}</span>
+                  <div key={i} className="flex flex-col p-4 bg-[#F8FAFC] rounded-2xl border border-slate-100 shadow-sm">
+                    <div className="flex justify-between items-start gap-4 mb-2">
+                      <span className="font-black text-slate-800 text-[13px] uppercase leading-tight line-clamp-2 flex-1">
+                        {p.stationName}
+                      </span>
+                      <span className="text-[#FF1A4D] font-black text-[11px] whitespace-nowrap">
+                        {new Date(p.date).toLocaleDateString('vi-VN')}
+                      </span>
                     </div>
-                    <span className="text-slate-500 truncate">{p.deviceLocation} - {p.phase} - {p.measuredTemp}°C</span>
+                    <span className="text-slate-500 text-[11px] font-medium leading-tight">
+                      {p.deviceLocation} - {p.phase} - {p.measuredTemp}°C
+                    </span>
                   </div>
                 ))}
               </div>
+
               <button 
                 onClick={() => setShowPopup(false)}
-                className="w-full py-3 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-xl font-black text-[10px] uppercase tracking-widest transition-colors"
+                className="w-full py-5 bg-[#FFF1F2] hover:bg-[#FFE4E6] text-[#FF1A4D] rounded-3xl font-black text-[13px] uppercase tracking-widest transition-all shadow-sm active:scale-[0.98] border border-rose-100/50"
               >
-                Tôi đã hiểu
+                TÔI ĐÃ HIỂU
               </button>
             </div>
-          </div>
-        </motion.div>
+          </motion.div>
+        </div>
       )}
     </AnimatePresence>
   );
