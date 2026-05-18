@@ -19,16 +19,27 @@ const FEEDER_GAS_URL = (import.meta as any).env.VITE_FEEDER_GAS_URL || "https://
 const App: React.FC = () => {
   const [view, setView] = useState<ViewState>(ViewState.LOGIN);
   const [userUnit, setUserUnit] = useState<string>('');
+
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showGuide, setShowGuide] = useState(false);
   const [criticalPoints, setCriticalPoints] = useState<ThermalData[]>([]);
   const [message, setMessage] = useState<{ type: 'success' | 'error' | 'warning', text: string } | null>(null);
-  
+
+  // Khôi phục phiên làm việc từ localStorage
+  useEffect(() => {
+    const savedUnit = localStorage.getItem('pcqn_thermal_unit');
+    if (savedUnit) {
+      setUserUnit(savedUnit);
+    }
+    // Set view if unit exists
+    if (savedUnit) {
+      setView(ViewState.FORM);
+    }
+  }, []);
+
   // Thêm cảnh báo trước khi thoát app
   useEffect(() => {
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
-      // Thông báo chuẩn của trình duyệt sẽ hiện ra
-      // Hầu hết trình duyệt hiện đại không cho phép tùy chỉnh nội dung câu hỏi
       e.preventDefault();
       e.returnValue = ''; 
     };
@@ -38,6 +49,7 @@ const App: React.FC = () => {
   }, []);
 
   const handleLogin = (unit: string) => {
+    localStorage.setItem('pcqn_thermal_unit', unit);
     setUserUnit(unit);
     setView(ViewState.FORM);
   };
@@ -125,6 +137,8 @@ const App: React.FC = () => {
                 <button 
                   onClick={() => {
                     if (window.confirm("Bạn có chắc chắn muốn đăng xuất và thoát phiên làm việc không?")) {
+                      localStorage.removeItem('pcqn_thermal_unit');
+                      setUserUnit('');
                       setView(ViewState.LOGIN);
                     }
                   }} 
@@ -203,6 +217,7 @@ const App: React.FC = () => {
         <NotificationScanner 
           gasUrl={GAS_URL} 
           onCriticalDetected={(points) => setCriticalPoints(points)} 
+          canShowPopup={view !== ViewState.LOGIN}
         />
 
         <AnimatePresence>

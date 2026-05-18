@@ -8,9 +8,10 @@ import { motion, AnimatePresence } from 'framer-motion';
 interface NotificationScannerProps {
   gasUrl: string;
   onCriticalDetected?: (points: ThermalData[]) => void;
+  canShowPopup?: boolean;
 }
 
-const NotificationScanner: React.FC<NotificationScannerProps> = ({ gasUrl, onCriticalDetected }) => {
+const NotificationScanner: React.FC<NotificationScannerProps> = ({ gasUrl, onCriticalDetected, canShowPopup = true }) => {
   const [criticalPoints, setCriticalPoints] = useState<ThermalData[]>([]);
   const [showPopup, setShowPopup] = useState(false);
   const [lastNotifiedCount, setLastNotifiedCount] = useState(0);
@@ -35,7 +36,9 @@ const NotificationScanner: React.FC<NotificationScannerProps> = ({ gasUrl, onCri
         // Show browser notification if count increased
         if (criticals.length > lastNotifiedCount) {
           sendBrowserNotification(criticals.length);
-          setShowPopup(true);
+          if (canShowPopup) {
+            setShowPopup(true);
+          }
           setLastNotifiedCount(criticals.length);
         }
       } else {
@@ -46,7 +49,7 @@ const NotificationScanner: React.FC<NotificationScannerProps> = ({ gasUrl, onCri
     } catch (error) {
       console.error('Error scanning for critical points:', error);
     }
-  }, [gasUrl, lastNotifiedCount, onCriticalDetected]);
+  }, [gasUrl, lastNotifiedCount, onCriticalDetected, canShowPopup]);
 
   const sendBrowserNotification = (count: number) => {
     if (!("Notification" in window)) return;
