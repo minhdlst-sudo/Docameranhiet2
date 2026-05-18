@@ -8,8 +8,10 @@ import Dashboard from './components/Dashboard';
 import ActionPlanEditor from './components/ActionPlanEditor';
 import FeederManager from './components/FeederManager';
 import UserGuide from './components/UserGuide';
+import NotificationScanner from './components/NotificationScanner';
 import { submitThermalData, fetchThermalData } from './services/gasService';
-import { AnimatePresence } from 'framer-motion';
+import { AnimatePresence, motion } from 'framer-motion';
+import { Bell } from 'lucide-react';
 
 const GAS_URL = "https://script.google.com/macros/s/AKfycbyIhopd2q04JIIGOgu-4-d9qaArEbZnWW5luk6SNbS-3lOPVAtqAvzw0shkn-3lwiYbGA/exec"; 
 const FEEDER_GAS_URL = (import.meta as any).env.VITE_FEEDER_GAS_URL || "https://script.google.com/macros/s/AKfycbxsVqcswIjzvOl5FO6kmpAZCjMa6LKj-wwj_xs8hRXVIcaU24QR3ZBUdxxXGV6-WQRBKQ/exec";
@@ -19,6 +21,7 @@ const App: React.FC = () => {
   const [userUnit, setUserUnit] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showGuide, setShowGuide] = useState(false);
+  const [criticalPoints, setCriticalPoints] = useState<ThermalData[]>([]);
   const [message, setMessage] = useState<{ type: 'success' | 'error' | 'warning', text: string } | null>(null);
   
   // Thêm cảnh báo trước khi thoát app
@@ -100,7 +103,46 @@ const App: React.FC = () => {
           </div>
         )}
 
-        {view === ViewState.LOGIN && <Login onLogin={handleLogin} />}
+        {view === ViewState.LOGIN && (
+          <div className="space-y-6">
+            {criticalPoints.length > 0 && (
+              <motion.div 
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="p-4 bg-rose-600 rounded-3xl shadow-xl shadow-rose-200 border-2 border-rose-400"
+              >
+                <div className="flex items-center gap-4 mb-3">
+                  <div className="w-12 h-12 rounded-2xl bg-white/20 flex items-center justify-center flex-shrink-0 backdrop-blur-sm">
+                    <div className="relative">
+                      <Bell className="w-6 h-6 text-white animate-bounce" />
+                      <div className="absolute -top-1 -right-1 w-3 h-3 bg-white rounded-full flex items-center justify-center">
+                        <div className="w-1.5 h-1.5 bg-rose-600 rounded-full animate-ping"></div>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="text-white font-black text-sm uppercase tracking-tight">Cảnh báo khẩn cấp</h3>
+                    <p className="text-rose-100 text-[11px] font-bold leading-tight">
+                      Hiện có <span className="text-white font-black">{criticalPoints.length}</span> điểm đo Nguy cấp chưa xử lý.
+                    </p>
+                  </div>
+                </div>
+                <div className="space-y-2 max-h-40 overflow-y-auto pr-1 custom-scrollbar">
+                  {criticalPoints.map((p, i) => (
+                    <div key={i} className="bg-white/10 backdrop-blur-md rounded-xl p-2.5 border border-white/10 flex flex-col">
+                      <div className="flex justify-between items-start gap-2">
+                        <span className="text-white font-black text-[10px] uppercase truncate">{p.stationName}</span>
+                        <span className="text-rose-100 font-black text-[10px] whitespace-nowrap">{p.measuredTemp}°C</span>
+                      </div>
+                      <span className="text-rose-100 text-[9px] font-medium">{p.deviceLocation} - {p.phase}</span>
+                    </div>
+                  ))}
+                </div>
+              </motion.div>
+            )}
+            <Login onLogin={handleLogin} />
+          </div>
+        )}
 
         {view === ViewState.FORM && (
           <div className="space-y-4">
@@ -192,6 +234,11 @@ const App: React.FC = () => {
         {view === ViewState.FEEDER_MANAGER && (
           <FeederManager unit={userUnit} gasUrl={FEEDER_GAS_URL} onBack={() => setView(ViewState.FORM)} />
         )}
+
+        <NotificationScanner 
+          gasUrl={GAS_URL} 
+          onCriticalDetected={(points) => setCriticalPoints(points)} 
+        />
 
         <AnimatePresence>
           {showGuide && <UserGuide onClose={() => setShowGuide(false)} />}
