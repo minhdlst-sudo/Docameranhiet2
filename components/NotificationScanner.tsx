@@ -14,7 +14,23 @@ interface NotificationScannerProps {
 const NotificationScanner: React.FC<NotificationScannerProps> = ({ gasUrl, onCriticalDetected, canShowPopup = true }) => {
   const [criticalPoints, setCriticalPoints] = useState<ThermalData[]>([]);
   const [showPopup, setShowPopup] = useState(false);
-  const [lastNotifiedCount, setLastNotifiedCount] = useState(0);
+  const [notifiedIds, setNotifiedIds] = useState<Set<string>>(new Set());
+
+  // Load notified IDs from localStorage on mount
+  useEffect(() => {
+    const saved = localStorage.getItem('pcqn_notified_critical_ids');
+    if (saved) {
+      try {
+        setNotifiedIds(new Set(JSON.parse(saved)));
+      } catch (e) {
+        console.error('Failed to parse notified IDs', e);
+      }
+    }
+  }, []);
+
+  const getItemId = (item: ThermalData) => {
+    return `${item.stationName}|${item.deviceLocation}|${item.phase}|${item.date}`;
+  };
 
   const checkCritical = useCallback(async () => {
     try {
@@ -33,24 +49,32 @@ const NotificationScanner: React.FC<NotificationScannerProps> = ({ gasUrl, onCri
       if (criticals.length > 0) {
         if (onCriticalDetected) onCriticalDetected(criticals);
         
-        // Show browser notification if count increased
-        if (criticals.length > lastNotifiedCount) {
-          // Notify about the latest one (first in sorted list)
-          sendBrowserNotification(criticals[0]);
+        // Find points that haven't been notified yet
+        const newUnnotifiedPoints = criticals.filter(item => !notifiedIds.has(getItemId(item)));
+        
+        if (newUnnotifiedPoints.length > 0) {
+          // Notify about the absolute latest unnotified one
+          sendBrowserNotification(newUnnotifiedPoints[0]);
+          
+          // Update notified IDs state and localStorage
+          const updatedIds = new Set(notifiedIds);
+          newUnnotifiedPoints.forEach(item => updatedIds.add(getItemId(item)));
+          
+          setNotifiedIds(updatedIds);
+          localStorage.setItem('pcqn_notified_critical_ids', JSON.stringify(Array.from(updatedIds)));
+
           if (canShowPopup) {
             setShowPopup(true);
           }
-          setLastNotifiedCount(criticals.length);
         }
       } else {
         if (onCriticalDetected) onCriticalDetected([]);
         setShowPopup(false);
-        setLastNotifiedCount(0);
       }
     } catch (error) {
       console.error('Error scanning for critical points:', error);
     }
-  }, [gasUrl, lastNotifiedCount, onCriticalDetected, canShowPopup]);
+  }, [gasUrl, notifiedIds, onCriticalDetected, canShowPopup]);
 
   const sendBrowserNotification = (item: ThermalData) => {
     if (!("Notification" in window)) return;
