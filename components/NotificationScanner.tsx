@@ -35,7 +35,8 @@ const NotificationScanner: React.FC<NotificationScannerProps> = ({ gasUrl, onCri
         
         // Show browser notification if count increased
         if (criticals.length > lastNotifiedCount) {
-          sendBrowserNotification(criticals.length);
+          // Notify about the latest one (first in sorted list)
+          sendBrowserNotification(criticals[0]);
           if (canShowPopup) {
             setShowPopup(true);
           }
@@ -51,12 +52,12 @@ const NotificationScanner: React.FC<NotificationScannerProps> = ({ gasUrl, onCri
     }
   }, [gasUrl, lastNotifiedCount, onCriticalDetected, canShowPopup]);
 
-  const sendBrowserNotification = (count: number) => {
+  const sendBrowserNotification = (item: ThermalData) => {
     if (!("Notification" in window)) return;
 
-    const title = "CẢNH BÁO NGUY CẤP";
+    const title = "CẢNH BÁO NGUY CẤP MỚI";
     const options = {
-      body: `Phát hiện ${count} vị trí có nhiệt độ bất thường chưa được xử lý!`,
+      body: `${item.stationName}: ${item.deviceLocation} - ${item.measuredTemp}°C`,
       icon: "/favicon.ico",
       badge: "/favicon.ico",
       vibrate: [200, 100, 200]
@@ -74,7 +75,7 @@ const NotificationScanner: React.FC<NotificationScannerProps> = ({ gasUrl, onCri
     } else if (Notification.permission !== "denied") {
       Notification.requestPermission().then(permission => {
         if (permission === "granted") {
-          sendBrowserNotification(count);
+          sendBrowserNotification(item);
         }
       });
     }
