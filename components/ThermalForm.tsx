@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { ThermalData } from '../types';
+import { ThermalData, DEVICE_SPECIFICATIONS, getThermalStatus } from '../types';
 import { getFeedersForUnit, updateFeedersForUnit } from '../services/feederService';
 import { fetchFeedersFromSheet } from '../services/gasService';
 import { getThermalAnalysis } from '../services/geminiService';
@@ -30,7 +30,8 @@ const ThermalForm: React.FC<ThermalFormProps> = ({ unit, gasUrl, feederGasUrl, o
     normalImage: null,
     conclusion: '',
     inspector: '',
-    date: new Date().toISOString().split('T')[0]
+    date: new Date().toISOString().split('T')[0],
+    deviceName: DEVICE_SPECIFICATIONS[0].name
   });
 
   const [formData, setFormData] = useState<Partial<ThermalData>>(getInitialState());
@@ -38,6 +39,8 @@ const ThermalForm: React.FC<ThermalFormProps> = ({ unit, gasUrl, feederGasUrl, o
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isFetchingWeather, setIsFetchingWeather] = useState(false);
   const [isLoadingFeeders, setIsLoadingFeeders] = useState(false);
+
+  const diagnostic = getThermalStatus(formData);
 
   const fetchWeather = () => {
     if (!navigator.geolocation) {
@@ -151,15 +154,25 @@ const ThermalForm: React.FC<ThermalFormProps> = ({ unit, gasUrl, feederGasUrl, o
   }, [unit, feederGasUrl]);
 
   const handleAIAnalyze = async () => {
-    if (!formData.measuredTemp || !formData.referenceTemp) {
-      alert("Vui lòng nhập nhiệt độ đo và nhiệt độ tham chiếu để AI đánh giá.");
+    if (!formData.measuredTemp) {
+      alert("Vui lòng nhập nhiệt độ đo để AI đánh giá.");
       return;
     }
+
+    const spec = DEVICE_SPECIFICATIONS.find(s => s.name === formData.deviceName);
+    const needsRef = !spec || spec.compareType === 'reference';
+    if (needsRef && !formData.referenceTemp) {
+      alert("Vui lòng nhập nhiệt độ tham chiếu để AI đánh giá.");
+      return;
+    }
+
     setIsAnalyzing(true);
     const analysis = await getThermalAnalysis(
       formData.measuredTemp, 
-      formData.referenceTemp, 
-      formData.currentLoad || 0
+      formData.referenceTemp || Number(formData.ambientTemp || 25), 
+      formData.currentLoad || 0,
+      formData.deviceName,
+      formData.ambientTemp || 25
     );
     setFormData(prev => ({ ...prev, conclusion: analysis }));
     setIsAnalyzing(false);
@@ -291,6 +304,37 @@ const ThermalForm: React.FC<ThermalFormProps> = ({ unit, gasUrl, feederGasUrl, o
           </div>
         </div>
 
+        <div className="space-y-3">
+          <div>
+            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1">Tên thiết bị (Loại thiết bị)</label>
+            <select 
+              required
+              value={formData.deviceName ?? ''}
+              onChange={e => setFormData({...formData, deviceName: e.target.value})}
+              className="w-full p-3.5 bg-slate-50 border border-slate-100 rounded-2xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none text-sm font-bold text-slate-700"
+            >
+              {DEVICE_SPECIFICATIONS.map(spec => (
+                <option key={spec.name} value={spec.name}>{spec.name}</option>
+              ))}
+            </select>
+          </div>
+          
+          <div className="p-4 bg-blue-50/5 border border-blue-500/15 rounded-2xl space-y-1.5 backdrop-blur-sm">
+            <div>
+              <span className="text-[9px] font-black text-blue-500 uppercase tracking-widest block">Nhiệt độ so sánh tham chiếu (Cột D)</span>
+              <p className="text-xs font-bold text-slate-600 leading-relaxed text-blue-950">
+                {diagnostic.compareDesc}
+              </p>
+            </div>
+            <div>
+              <span className="text-[9px] font-black text-blue-500/75 uppercase tracking-widest block.pt-1">Quy định kỹ thuật & Ngưỡng lỗi (Cột C)</span>
+              <p className="text-[11px] font-semibold text-slate-500 italic leading-relaxed">
+                {diagnostic.ruleDesc}
+              </p>
+            </div>
+          </div>
+        </div>
+
         <div className="p-5 bg-blue-50/30 border-2 border-blue-400/30 rounded-[2rem] space-y-4 relative overflow-hidden">
           <div className="flex items-center justify-between mb-1">
             <div className="flex items-center gap-2">
@@ -300,10 +344,16 @@ const ThermalForm: React.FC<ThermalFormProps> = ({ unit, gasUrl, feederGasUrl, o
             <div className="flex items-center gap-1.5 px-3 py-1 bg-white border border-blue-100 rounded-full shadow-sm">
               <span className="text-[9px] font-black text-slate-400 uppercase tracking-tighter">ΔT:</span>
               <span className={`text-sm font-black leading-none ${
-                Number(formData.measuredTemp || 0) > 75 ? 'text-rose-500' :
-                (Number(formData.measuredTemp || 0) - Number(formData.referenceTemp || 0)) > 15 ? 'text-orange-500' : 'text-emerald-500'
+                diagnostic.level === 'Nguy cấp' ? 'text-rose-600' :
+                diagnostic.level === 'Theo dõi' ? 'text-amber-500' : 'text-emerald-600'
               }`}>
-                {(Number(formData.measuredTemp || 0) - Number(formData.referenceTemp || 0)).toFixed(1)}°C
+                {diagnostic.deltaT.toFixed(1)}°C
+              </span>
+              <span className={`text-[9px] font-black uppercase px-1.5 py-0.5 rounded ${
+                diagnostic.level === 'Nguy cấp' ? 'bg-rose-100 text-rose-700' :
+                diagnostic.level === 'Theo dõi' ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'
+              }`}>
+                {diagnostic.level}
               </span>
             </div>
           </div>

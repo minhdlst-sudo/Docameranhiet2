@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { ThermalData } from '../types';
+import { ThermalData, getThermalStatus } from '../types';
 import { fetchThermalData } from '../services/gasService';
 import { ArrowLeft, Download, FileSpreadsheet } from 'lucide-react';
 
@@ -139,7 +139,7 @@ const DataViewer: React.FC<DataViewerProps> = ({ gasUrl, currentUnit, onBack }) 
 
     // Tiêu đề cột
     const headers = [
-      "Đơn vị", "Trạm/Nhánh rẽ", "Xuất tuyến", "Loại kiểm tra", "Vị trí cột", 
+      "Đơn vị", "Trạm/Nhánh rẽ", "Tên thiết bị", "Xuất tuyến", "Loại kiểm tra", "Vị trí cột", 
       "Pha", "Nhiệt độ đo (°C)", "Tham chiếu (°C)", "Môi trường (°C)", 
       "Dòng điện phụ tải (A)", "Kết luận", "Người kiểm tra", "Ngày đo", 
       "Kế hoạch xử lý", "Ngày đã xử lý", "Nhiệt độ sau xử lý"
@@ -161,6 +161,7 @@ const DataViewer: React.FC<DataViewerProps> = ({ gasUrl, currentUnit, onBack }) 
     const csvRows = filteredData.map(item => [
       escapeCSV(item.unit, true),
       escapeCSV(item.stationName, true),
+      escapeCSV(item.deviceName || "", true),
       escapeCSV(item.feeder, true),
       escapeCSV(item.inspectionType, true),
       escapeCSV(item.deviceLocation, true),
@@ -215,10 +216,10 @@ const DataViewer: React.FC<DataViewerProps> = ({ gasUrl, currentUnit, onBack }) 
     loadData();
   }, [loadData]);
 
-  const getWarningLevel = (measured: number, reference: number): WarningLevel => {
-    const diff = measured - reference;
-    if (measured > 75) return 'Emergency';
-    if (diff > 15) return 'Monitor';
+  const getWarningLevel = (item: ThermalData): WarningLevel => {
+    const status = getThermalStatus(item);
+    if (status.level === 'Nguy cấp') return 'Emergency';
+    if (status.level === 'Theo dõi') return 'Monitor';
     return 'Normal';
   };
 
@@ -240,14 +241,14 @@ const DataViewer: React.FC<DataViewerProps> = ({ gasUrl, currentUnit, onBack }) 
     
     if (warningFilter === 'All') return matchesSearch;
     
-    const level = getWarningLevel(Number(item.measuredTemp), Number(item.referenceTemp));
+    const level = getWarningLevel(item);
     return matchesSearch && level === warningFilter;
   });
 
   const counts = useMemo(() => {
     const c = { All: data.length, Normal: 0, Monitor: 0, Emergency: 0 };
     data.forEach(item => {
-      const level = getWarningLevel(Number(item.measuredTemp), Number(item.referenceTemp));
+      const level = getWarningLevel(item);
       if (level in c) {
         c[level as keyof typeof c]++;
       }
@@ -371,7 +372,8 @@ const DataViewer: React.FC<DataViewerProps> = ({ gasUrl, currentUnit, onBack }) 
       ) : (
         <div className="space-y-4 max-h-[500px] overflow-y-auto pr-2 custom-scrollbar">
           {[...filteredData].reverse().map((item, index) => {
-            const level = getWarningLevel(Number(item.measuredTemp), Number(item.referenceTemp));
+            const level = getWarningLevel(item);
+            const status = getThermalStatus(item);
             const label = getWarningLabel(level);
             return (
               <div key={index} className="p-4 bg-slate-50 rounded-2xl border border-slate-100 space-y-3 hover:border-slate-200 transition-all group">
@@ -389,6 +391,11 @@ const DataViewer: React.FC<DataViewerProps> = ({ gasUrl, currentUnit, onBack }) 
                       </p>
                     )}
                     <div className="space-y-0.5">
+                      {item.deviceName && (
+                        <p className="text-[9px] text-blue-600 font-black uppercase tracking-tight">
+                          Thiết bị: {item.deviceName}
+                        </p>
+                      )}
                       <p className="text-[10px] text-slate-500 font-bold uppercase">
                         <span className="text-slate-400">Trạm/Nhánh rẽ:</span> {item.stationName}
                       </p>
@@ -408,15 +415,17 @@ const DataViewer: React.FC<DataViewerProps> = ({ gasUrl, currentUnit, onBack }) 
                 <div className="grid grid-cols-3 gap-2 py-2.5 border-y border-slate-200/50">
                   <div className="text-center">
                     <p className="text-[8px] text-slate-400 uppercase font-bold mb-0.5">Nhiệt độ đo</p>
-                    <p className={`text-sm font-black ${Number(item.measuredTemp) > 70 ? 'text-rose-600' : 'text-slate-800'}`}>{item.measuredTemp}°C</p>
+                    <p className={`text-sm font-black ${status.level === 'Nguy cấp' ? 'text-rose-600' : 'text-slate-800'}`}>{item.measuredTemp}°C</p>
                   </div>
                   <div className="text-center border-x border-slate-200/50">
                     <p className="text-[8px] text-slate-400 uppercase font-bold mb-0.5">Tham chiếu</p>
-                    <p className="text-sm font-black text-slate-600">{item.referenceTemp}°C</p>
+                    <p className="text-sm font-black text-slate-600">
+                      {item.referenceTemp !== undefined && !isNaN(Number(item.referenceTemp)) ? `${item.referenceTemp}°C` : 'N/A'}
+                    </p>
                   </div>
                   <div className="text-center">
-                    <p className="text-[8px] text-slate-400 uppercase font-bold mb-0.5">Chênh lệch</p>
-                    <p className={`text-sm font-black ${label.color}`}>{(Number(item.measuredTemp) - Number(item.referenceTemp)).toFixed(1)}°C</p>
+                    <p className="text-[8px] text-slate-400 uppercase font-bold mb-0.5">Chênh lệch ΔT</p>
+                    <p className={`text-sm font-black ${label.color}`}>{status.deltaT.toFixed(1)}°C</p>
                   </div>
                 </div>
                 

@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { ThermalData } from '../types';
+import { ThermalData, getThermalStatus } from '../types';
 import { fetchThermalData } from '../services/gasService';
 import { Bell, AlertCircle, X, ShieldAlert } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -16,9 +16,9 @@ const NotificationScanner: React.FC<NotificationScannerProps> = ({ gasUrl, onCri
   const [showPopup, setShowPopup] = useState(false);
   const [notifiedIds, setNotifiedIds] = useState<Set<string>>(new Set());
 
-  // Load notified IDs from localStorage on mount
+  // Load notified locations from localStorage on mount (prevents multiple spams per location)
   useEffect(() => {
-    const saved = localStorage.getItem('pcqn_notified_critical_ids');
+    const saved = localStorage.getItem('pcqn_notified_critical_locs');
     if (saved) {
       try {
         setNotifiedIds(new Set(JSON.parse(saved)));
@@ -28,18 +28,16 @@ const NotificationScanner: React.FC<NotificationScannerProps> = ({ gasUrl, onCri
     }
   }, []);
 
-  const getItemId = (item: ThermalData) => {
-    return `${item.stationName}|${item.deviceLocation}|${item.phase}|${item.date}`;
+  const getLocId = (item: ThermalData) => {
+    return `${item.stationName?.trim() || ''}|${item.deviceLocation?.trim() || ''}|${item.phase?.trim() || ''}`;
   };
 
   const checkCritical = useCallback(async () => {
     try {
       const data = await fetchThermalData(gasUrl);
       const criticals = data.filter(item => {
-        const measured = Number(item.measuredTemp);
-        const ref = Number(item.referenceTemp);
-        const diff = measured - ref;
-        const isCritical = measured > 75 || diff > 15;
+        const status = getThermalStatus(item);
+        const isCritical = status.level === 'Nguy cấp';
         const isNotProcessed = !item.processedDate || item.processedDate.trim() === '';
         return isCritical && isNotProcessed;
       }).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
@@ -49,19 +47,19 @@ const NotificationScanner: React.FC<NotificationScannerProps> = ({ gasUrl, onCri
       if (criticals.length > 0) {
         if (onCriticalDetected) onCriticalDetected(criticals);
         
-        // Find points that haven't been notified yet
-        const newUnnotifiedPoints = criticals.filter(item => !notifiedIds.has(getItemId(item)));
+        // Find points that haven't been notified yet (using unique location identifier)
+        const newUnnotifiedPoints = criticals.filter(item => !notifiedIds.has(getLocId(item)));
         
         if (newUnnotifiedPoints.length > 0) {
-          // Notify about the absolute latest unnotified one
+          // Notify about the absolute single latest unnotified one (newUnnotifiedPoints is sorted descending by date)
           sendBrowserNotification(newUnnotifiedPoints[0]);
           
           // Update notified IDs state and localStorage
           const updatedIds = new Set(notifiedIds);
-          newUnnotifiedPoints.forEach(item => updatedIds.add(getItemId(item)));
+          newUnnotifiedPoints.forEach(item => updatedIds.add(getLocId(item)));
           
           setNotifiedIds(updatedIds);
-          localStorage.setItem('pcqn_notified_critical_ids', JSON.stringify(Array.from(updatedIds)));
+          localStorage.setItem('pcqn_notified_critical_locs', JSON.stringify(Array.from(updatedIds)));
 
           if (canShowPopup) {
             setShowPopup(true);

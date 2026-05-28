@@ -6,12 +6,82 @@ export const submitThermalData = async (gasUrl: string, data: ThermalData): Prom
     return { success: false, message: 'Lỗi: Chưa cấu hình URL Google Apps Script.' };
   }
 
+  // Tạo map tất cả các hoán vị từ khóa cột Y cho "Tên thiết bị (Loại thiết bị)" để đảm bảo ghi đúng cột Y
+  const deviceNameKeys = [
+    "Tên Thiết bị",
+    "Tên thiết bị",
+    "Tên Thiết Bị",
+    "tên thiết bị",
+    "TÊN THIẾT BỊ",
+    "Ten Thiet bi",
+    "Ten thiet bi",
+    "Ten Thiet Bi",
+    "ten thiet bi",
+    "TEN THIET BI",
+    "deviceName",
+    "device_name",
+    "Tên thiết bị (loại thiết bị)",
+    "Tên thiết bị (Loại thiết bị)",
+    "Ten thiet bi (loai thiet bi)",
+    "Ten thiet bi (Loai thiet bi)",
+    "Ten thiet bi / Loai thiet bi",
+    "Ten thiet bi/Loai thiet bi",
+    "Tên thiết bị, loại thiết bị",
+    "Tên thiết bị,loại thiết bị",
+    "Loại thiết bị (Tên thiết bị)",
+    "Loại Thiết Bị (Tên Thiết Bị)",
+    "Cột Y",
+    "cột Y",
+    "cột y",
+    "CỘT Y",
+    "Column Y",
+    "columnY",
+    "column_Y",
+    "colY",
+    "col_Y",
+    "col_y",
+    "Y",
+    "y",
+    "column25",
+    "col25",
+    "cộtY",
+    "cộty",
+    "cột_Y",
+    "cột_y",
+    "cotY",
+    "coty",
+    "cot_Y",
+    "cot_y",
+    "cot Y",
+    "cot y"
+  ];
+
+  const deviceNameVal = data.deviceName || "";
+  const deviceNamePayloadMap: Record<string, string> = {};
+
+  deviceNameKeys.forEach(key => {
+    // Bản gốc
+    deviceNamePayloadMap[key] = deviceNameVal;
+    deviceNamePayloadMap[`${key}_quote`] = deviceNameVal ? `'${deviceNameVal}` : '';
+
+    // Bản chuẩn hóa NFC
+    const nfcKey = key.normalize("NFC");
+    deviceNamePayloadMap[nfcKey] = deviceNameVal;
+    deviceNamePayloadMap[`${nfcKey}_quote`] = deviceNameVal ? `'${deviceNameVal}` : '';
+
+    // Bản chuẩn hóa NFD
+    const nfdKey = key.normalize("NFD");
+    deviceNamePayloadMap[nfdKey] = deviceNameVal;
+    deviceNamePayloadMap[`${nfdKey}_quote`] = deviceNameVal ? `'${deviceNameVal}` : '';
+  });
+
   // Đảm bảo các trường số liệu được gửi đi là kiểu số
   // Thêm dấu nháy đơn (') vào trước các trường text dễ bị GG Sheet hiểu lầm là ngày tháng (VD: 12/5)
   const payload = {
     action: 'submitThermal',
     sheetName: 'data',
     ...data,
+    ...deviceNamePayloadMap,
     deviceLocation: `'${data.deviceLocation}`,
     stationName: `'${data.stationName}`,
     feeder: `'${data.feeder}`,
@@ -98,18 +168,77 @@ export const fetchThermalData = async (gasUrl: string): Promise<ThermalData[]> =
       }
 
       // Làm sạch dữ liệu: Loại bỏ dấu nháy đơn (') ở đầu chuỗi nếu có (do chúng ta thêm vào để tránh lỗi định dạng GG Sheet)
-      return rawData.map(item => ({
-        ...item,
-        deviceLocation: item.deviceLocation?.toString().startsWith("'") ? item.deviceLocation.toString().substring(1) : item.deviceLocation,
-        stationName: item.stationName?.toString().startsWith("'") ? item.stationName.toString().substring(1) : item.stationName,
-        feeder: item.feeder?.toString().startsWith("'") ? item.feeder.toString().substring(1) : item.feeder,
-        actionPlan: item.actionPlan?.toString().startsWith("'") ? item.actionPlan.toString().substring(1) : item.actionPlan,
-        processedDate: item.processedDate?.toString().startsWith("'") ? item.processedDate.toString().substring(1) : item.processedDate,
-        postTemp: item.postTemp ? Number(item.postTemp) : undefined,
-        postImage: item.postImage,
-        date: item.date?.toString().startsWith("'") ? item.date.toString().substring(1) : item.date,
-        timestamp: item.timestamp,
-      }));
+      return rawData.map(item => {
+        // Tìm và phân giải loại thiết bị từ các key có thể có của Cột Y trong dữ liệu dòng
+        const keysToTry = [
+          "Tên thiết bị (loại thiết bị)",
+          "Tên thiết bị (Loại thiết bị)",
+          "Ten thiet bi (loai thiet bi)",
+          "Ten thiet bi (Loai thiet bi)",
+          "Ten thiet bi / Loai thiet bi",
+          "Ten thiet bi/Loai thiet bi",
+          "Tên thiết bị, loại thiết bị",
+          "Tên thiết bị,loại thiết bị",
+          "Loại thiết bị (Tên thiết bị)",
+          "Loại Thiết Bị (Tên Thiết Bị)",
+          "TÊN THIẾT BỊ",
+          "Tên thiết bị",
+          "Tên Thiết Bị",
+          "deviceName",
+          "device_name",
+          "tenThietBi",
+          "ten_thiet_bi",
+          "Cột Y", "cột Y", "cột y", "CỘT Y",
+          "Column Y", "columnY", "column_Y", "colY", "col_Y", "col_y", "Y", "y",
+          "column25", "col25", "cộtY", "cộty", "cột_Y", "cột_y", "cột Y", "cột y",
+          "cotY", "coty", "cot_Y", "cot_y", "cot Y", "cot y"
+        ];
+        
+        let foundDeviceName: any = null;
+        const rawItem = item as any;
+        for (const key of keysToTry) {
+          if (rawItem[key] !== undefined && rawItem[key] !== null && rawItem[key] !== "") {
+            foundDeviceName = rawItem[key];
+            break;
+          }
+          
+          const nfcKey = key.normalize("NFC");
+          if (rawItem[nfcKey] !== undefined && rawItem[nfcKey] !== null && rawItem[nfcKey] !== "") {
+            foundDeviceName = rawItem[nfcKey];
+            break;
+          }
+          
+          const nfdKey = key.normalize("NFD");
+          if (rawItem[nfdKey] !== undefined && rawItem[nfdKey] !== null && rawItem[nfdKey] !== "") {
+            foundDeviceName = rawItem[nfdKey];
+            break;
+          }
+          
+          const quoteKey = key + "_quote";
+          if (rawItem[quoteKey] !== undefined && rawItem[quoteKey] !== null && rawItem[quoteKey] !== "") {
+            foundDeviceName = rawItem[quoteKey];
+            break;
+          }
+        }
+        
+        const deviceNameCleaned = foundDeviceName != null && foundDeviceName.toString().startsWith("'") 
+          ? foundDeviceName.toString().substring(1) 
+          : (foundDeviceName || item.deviceName || "");
+
+        return {
+          ...item,
+          deviceName: deviceNameCleaned || undefined,
+          deviceLocation: item.deviceLocation?.toString().startsWith("'") ? item.deviceLocation.toString().substring(1) : item.deviceLocation,
+          stationName: item.stationName?.toString().startsWith("'") ? item.stationName.toString().substring(1) : item.stationName,
+          feeder: item.feeder?.toString().startsWith("'") ? item.feeder.toString().substring(1) : item.feeder,
+          actionPlan: item.actionPlan?.toString().startsWith("'") ? item.actionPlan.toString().substring(1) : item.actionPlan,
+          processedDate: item.processedDate?.toString().startsWith("'") ? item.processedDate.toString().substring(1) : item.processedDate,
+          postTemp: item.postTemp ? Number(item.postTemp) : undefined,
+          postImage: item.postImage,
+          date: item.date?.toString().startsWith("'") ? item.date.toString().substring(1) : item.date,
+          timestamp: item.timestamp,
+        };
+      });
     } catch (error) {
       clearTimeout(timeoutId);
       lastError = error;

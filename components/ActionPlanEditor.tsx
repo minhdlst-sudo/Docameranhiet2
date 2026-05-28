@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { ThermalData } from '../types';
+import { ThermalData, getThermalStatus } from '../types';
 import { fetchThermalData, updateActionPlan } from '../services/gasService';
 import { motion, AnimatePresence } from 'framer-motion';
 import { RefreshCw, ArrowLeft, Camera, Image, X } from 'lucide-react';
@@ -118,9 +118,8 @@ const ActionPlanEditor: React.FC<ActionPlanEditorProps> = ({ gasUrl, currentUnit
       // Lọc dữ liệu theo đơn vị đang đăng nhập và mức cảnh báo (Chỉ hiện Nghiêm trọng & Nguy cấp: Delta T >= 15 HOẶC đã có kế hoạch)
       const unitData = validData.filter(item => {
         const isCorrectUnit = item.unit === currentUnit;
-        const measured = Number(item.measuredTemp);
-        const diff = measured - Number(item.referenceTemp);
-        const isMonitorOrEmergency = diff > 15 || measured > 75;
+        const status = getThermalStatus(item);
+        const isMonitorOrEmergency = status.level === 'Theo dõi' || status.level === 'Nguy cấp';
         const hasActionPlan = !!(item.actionPlan || item.processedDate || item.postTemp);
         return isCorrectUnit && (isMonitorOrEmergency || hasActionPlan);
       });
@@ -240,9 +239,13 @@ const ActionPlanEditor: React.FC<ActionPlanEditorProps> = ({ gasUrl, currentUnit
               <p className="text-xs text-slate-500 font-medium mt-1">
                 Loại kiểm tra: {selectedItem.inspectionType} | Ngày đo: {formatDate(selectedItem.date)}
               </p>
-              <div className="mt-2 flex items-center gap-4">
+              <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 bg-white/50 p-2.5 rounded-xl border border-blue-100/30">
+                {selectedItem.deviceName && (
+                  <p className="text-[11px] font-black text-blue-700 w-full mb-0.5">Thiết bị: {selectedItem.deviceName}</p>
+                )}
                 <span className="text-xs font-bold text-rose-600">Nhiệt độ: {selectedItem.measuredTemp}°C</span>
-                <span className="text-xs font-bold text-slate-500">Chênh lệch: {(Number(selectedItem.measuredTemp) - Number(selectedItem.referenceTemp)).toFixed(1)}°C</span>
+                <span className="text-xs font-bold text-slate-500">Chênh lệch: {getThermalStatus(selectedItem).deltaT.toFixed(1)}°C</span>
+                <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full ${getThermalStatus(selectedItem).level === 'Nguy cấp' ? 'bg-rose-100 text-rose-700' : 'bg-amber-100 text-amber-700'}`}>{getThermalStatus(selectedItem).level}</span>
               </div>
             </div>
 
@@ -395,10 +398,17 @@ const ActionPlanEditor: React.FC<ActionPlanEditorProps> = ({ gasUrl, currentUnit
                     }}
                     className="w-full text-left p-4 bg-white border border-slate-100 rounded-2xl hover:border-blue-200 hover:shadow-md transition-all group relative overflow-hidden"
                   >
-                    <div className="flex justify-between items-start mb-2">
-                      <h4 className="font-bold text-slate-800 text-sm group-hover:text-blue-600 transition-colors">{item.stationName}</h4>
-                      <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${Number(item.measuredTemp) > 75 ? 'text-rose-500 bg-rose-50' : 'text-orange-500 bg-orange-50'}`}>
-                        ΔT: {(Number(item.measuredTemp) - Number(item.referenceTemp)).toFixed(1)}°C
+                    <div className="flex justify-between items-start mb-2 gap-3">
+                      <div className="flex-1">
+                        <h4 className="font-bold text-slate-800 text-sm group-hover:text-blue-600 transition-colors mb-0.5">{item.stationName}</h4>
+                        {item.deviceName && (
+                          <span className="text-[9px] text-blue-600 font-bold block mb-1">
+                            {item.deviceName}
+                          </span>
+                        )}
+                      </div>
+                      <span className={`text-[10px] font-black px-2 py-0.5 rounded-full whitespace-nowrap ${getThermalStatus(item).level === 'Nguy cấp' ? 'text-rose-600 bg-rose-50 border border-rose-100' : 'text-amber-600 bg-amber-50 border border-amber-100'}`}>
+                        ΔT: {getThermalStatus(item).deltaT.toFixed(1)}°C ({getThermalStatus(item).level})
                       </span>
                     </div>
                     <p className="text-[10px] text-slate-500 font-bold uppercase mb-1">Vị trí: {item.deviceLocation} | XT: {item.feeder}</p>

@@ -5,7 +5,7 @@ import {
   PieChart, Pie, Cell, Legend, LabelList
 } from 'recharts';
 import * as XLSX from 'xlsx';
-import { ThermalData } from '../types';
+import { ThermalData, getThermalStatus } from '../types';
 import { fetchThermalData } from '../services/gasService';
 import { BarChart3, PieChart as PieChartIcon, ArrowLeft, RefreshCw, Calendar, ClipboardList, CheckCircle2, AlertTriangle, Building2, ChevronDown, AlertCircle, Download } from 'lucide-react';
 import { UNIT_FEEDERS } from '../constants';
@@ -92,9 +92,8 @@ const Dashboard: React.FC<DashboardProps> = ({ gasUrl, currentUnit, onBack }) =>
       let processed = 0;
 
       unitData.forEach(item => {
-        const measured = Number(item.measuredTemp);
-        const diff = measured - Number(item.referenceTemp);
-        const isDefect = diff > 15 || measured > 75;
+        const status = getThermalStatus(item);
+        const isDefect = status.level === 'Theo dõi' || status.level === 'Nguy cấp';
         
         if (isDefect) {
           defects++;
@@ -179,11 +178,8 @@ const Dashboard: React.FC<DashboardProps> = ({ gasUrl, currentUnit, onBack }) =>
     return cleanUrl;
   };
 
-  const getWarningLevel = (measured: number, reference: number) => {
-    const diff = measured - reference;
-    if (measured > 75) return 'Nguy cấp';
-    if (diff > 15) return 'Theo dõi';
-    return 'Bình thường';
+  const getWarningLevel = (item: ThermalData) => {
+    return getThermalStatus(item).level;
   };
 
   // Dữ liệu cho biểu đồ cột (Theo tháng trong năm được chọn)
@@ -223,7 +219,7 @@ const Dashboard: React.FC<DashboardProps> = ({ gasUrl, currentUnit, onBack }) =>
     };
 
     data.forEach(item => {
-      const level = getWarningLevel(Number(item.measuredTemp), Number(item.referenceTemp));
+      const level = getWarningLevel(item);
       stats[level as keyof typeof stats]++;
     });
 
@@ -243,9 +239,9 @@ const Dashboard: React.FC<DashboardProps> = ({ gasUrl, currentUnit, onBack }) =>
     let processed = 0;
 
     data.forEach(item => {
-      const measured = Number(item.measuredTemp);
-      const diff = measured - Number(item.referenceTemp);
-      if (diff > 15 || measured > 75) {
+      const status = getThermalStatus(item);
+      const isDefect = status.level === 'Theo dõi' || status.level === 'Nguy cấp';
+      if (isDefect) {
         defects++;
         if (item.actionPlan && item.actionPlan.trim() !== "") {
           planned++;
@@ -265,13 +261,12 @@ const Dashboard: React.FC<DashboardProps> = ({ gasUrl, currentUnit, onBack }) =>
 
   const defectiveLocations = useMemo(() => {
     return data.filter(item => {
-      const measured = Number(item.measuredTemp);
-      const diff = measured - Number(item.referenceTemp);
-      return diff > 15 || measured > 75;
+      const status = getThermalStatus(item);
+      return status.level === 'Theo dõi' || status.level === 'Nguy cấp';
     }).sort((a, b) => {
       // Sắp xếp: Nguy cấp trước, Theo dõi sau, rồi đến ngày mới nhất
-      const levelA = getWarningLevel(Number(a.measuredTemp), Number(a.referenceTemp));
-      const levelB = getWarningLevel(Number(b.measuredTemp), Number(b.referenceTemp));
+      const levelA = getWarningLevel(a);
+      const levelB = getWarningLevel(b);
       
       if (levelA === 'Nguy cấp' && levelB !== 'Nguy cấp') return -1;
       if (levelA !== 'Nguy cấp' && levelB === 'Nguy cấp') return 1;
@@ -287,17 +282,19 @@ const Dashboard: React.FC<DashboardProps> = ({ gasUrl, currentUnit, onBack }) =>
     }
 
     const exportData = defectiveLocations.map((item, index) => {
-      const level = getWarningLevel(Number(item.measuredTemp), Number(item.referenceTemp));
+      const level = getWarningLevel(item);
+      const status = getThermalStatus(item);
       return {
         'STT': index + 1,
         'Đơn vị': item.unit,
         'Trạm/Nhánh': item.stationName,
+        'Thiết bị': item.deviceName || '',
         'Xuất tuyến': item.feeder,
         'Vị trí': item.deviceLocation,
         'Pha': item.phase,
         'Nhiệt độ đo (°C)': item.measuredTemp,
-        'Nhiệt độ TC (°C)': item.referenceTemp,
-        'Chênh lệch ΔT (°C)': (Number(item.measuredTemp) - Number(item.referenceTemp)).toFixed(1),
+        'Nhiệt độ TC (°C)': item.referenceTemp ?? '',
+        'Chênh lệch ΔT (°C)': status.deltaT.toFixed(1),
         'Mức độ': level,
         'Ngày đo': formatDate(item.date),
         'Kế hoạch xử lý': item.actionPlan || '',
@@ -315,6 +312,7 @@ const Dashboard: React.FC<DashboardProps> = ({ gasUrl, currentUnit, onBack }) =>
       { wch: 5 },  // STT
       { wch: 15 }, // Đơn vị
       { wch: 25 }, // Trạm/Nhánh
+      { wch: 25 }, // Thiết bị
       { wch: 20 }, // Xuất tuyến
       { wch: 20 }, // Vị trí
       { wch: 10 }, // Pha
@@ -665,12 +663,19 @@ const Dashboard: React.FC<DashboardProps> = ({ gasUrl, currentUnit, onBack }) =>
             ) : (
               <div className="space-y-3 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
                 {defectiveLocations.map((item, idx) => {
-                  const level = getWarningLevel(Number(item.measuredTemp), Number(item.referenceTemp));
+                  const level = getWarningLevel(item);
                   const isEmergency = level === 'Nguy cấp';
                   return (
                     <div key={idx} className={`p-4 rounded-2xl border transition-all ${isEmergency ? 'bg-rose-50 border-rose-100' : 'bg-orange-50 border-orange-100'}`}>
                       <div className="flex justify-between items-start mb-2">
-                        <h4 className="text-[11px] font-black text-slate-800 truncate pr-2 uppercase">{item.stationName}</h4>
+                        <div className="flex-1 min-w-0">
+                          <h4 className="text-[11px] font-black text-slate-800 truncate pr-2 uppercase">{item.stationName}</h4>
+                          {item.deviceName && (
+                            <p className="text-[9px] text-blue-600 font-bold uppercase tracking-tight mt-0.5">
+                              Thiết bị: {item.deviceName}
+                            </p>
+                          )}
+                        </div>
                         <span className={`text-[8px] font-black uppercase px-2 py-0.5 rounded-full ${isEmergency ? 'bg-rose-600 text-white' : 'bg-orange-500 text-white'}`}>
                           {level}
                         </span>
