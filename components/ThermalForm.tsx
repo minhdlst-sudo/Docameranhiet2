@@ -31,7 +31,7 @@ const ThermalForm: React.FC<ThermalFormProps> = ({ unit, gasUrl, feederGasUrl, o
     conclusion: '',
     inspector: '',
     date: new Date().toISOString().split('T')[0],
-    deviceName: DEVICE_SPECIFICATIONS[0].name
+    deviceName: "Mối nối"
   });
 
   const [formData, setFormData] = useState<Partial<ThermalData>>(getInitialState());
@@ -321,13 +321,13 @@ const ThermalForm: React.FC<ThermalFormProps> = ({ unit, gasUrl, feederGasUrl, o
           
           <div className="p-4 bg-blue-50/5 border border-blue-500/15 rounded-2xl space-y-1.5 backdrop-blur-sm">
             <div>
-              <span className="text-[9px] font-black text-blue-500 uppercase tracking-widest block">Nhiệt độ so sánh tham chiếu (Cột D)</span>
+              <span className="text-[9px] font-black text-blue-500 uppercase tracking-widest block">Nhiệt độ so sánh</span>
               <p className="text-xs font-bold text-slate-600 leading-relaxed text-blue-950">
                 {diagnostic.compareDesc}
               </p>
             </div>
             <div>
-              <span className="text-[9px] font-black text-blue-500/75 uppercase tracking-widest block.pt-1">Quy định kỹ thuật & Ngưỡng lỗi (Cột C)</span>
+              <span className="text-[9px] font-black text-blue-500/75 uppercase tracking-widest block.pt-1">Ngưỡng CBM</span>
               <p className="text-[11px] font-semibold text-slate-500 italic leading-relaxed">
                 {diagnostic.ruleDesc}
               </p>
