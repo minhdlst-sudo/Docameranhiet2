@@ -64,8 +64,8 @@ export const DEVICE_SPECIFICATIONS: DeviceSpec[] = [
   {
     name: "RC 24-35kV",
     detail: "Thiết bị đóng cắt tự động Recloser trung thế 24kV, 35kV (Tiếp điểm đầu cực lèo cực và buồng dập).",
-    compareType: "ambient",
-    compareDesc: "So sánh hiệu số giữa nhiệt độ điểm nóng nhất đo tại kẹp cực hoặc buồng dập vỏ Recloser với nhiệt độ môi trường xung quanh (T_mt).",
+    compareType: "reference",
+    compareDesc: "So sánh hiệu số giữa nhiệt độ điểm nóng nhất đo tại kẹp cực hoặc buồng dập vỏ Recloser với nhiệt độ điểm tham chiếu tương tự (T_tc).",
     ruleDesc: "ΔT < 10°C: Tốt (tần suất chuẩn 03 tháng); 10°C < ΔT <= 20°C: Khá (tần suất 01 tháng); 20°C < ΔT <= 40°C: Trung bình (tần suất 2 tuần); ΔT > 40°C: Xấu (Sửa chữa ngay).",
     inspectionPeriod: "3 tháng/lần",
     thresholds: {
@@ -82,8 +82,8 @@ export const DEVICE_SPECIFICATIONS: DeviceSpec[] = [
   {
     name: "LBS 24kV - 35kV",
     detail: "Thiết bị đóng cắt phụ tải Load Break Switch (LBS) trung thế 24kV, 35kV (Tiếp điểm đầu cực lèo cực).",
-    compareType: "ambient",
-    compareDesc: "So sánh hiệu số giữa nhiệt độ điểm nóng nhất đo tại tiếp điểm cực lèo hoặc hộp dập hồ quang LBS với nhiệt độ môi trường xung quanh (T_mt).",
+    compareType: "reference",
+    compareDesc: "So sánh hiệu số giữa nhiệt độ điểm nóng nhất đo tại tiếp điểm cực lèo hoặc hộp dập hồ quang LBS với nhiệt độ điểm tham chiếu tương tự (T_tc).",
     ruleDesc: "ΔT < 10°C: Tốt (tần suất chuẩn 03 tháng); 10°C < ΔT <= 20°C: Khá (tần suất 01 tháng); 20°C < ΔT <= 40°C: Trung bình (tần suất 2 tuần); ΔT > 40°C: Xấu (Sửa chữa ngay).",
     inspectionPeriod: "3 tháng/lần",
     thresholds: {
@@ -100,8 +100,8 @@ export const DEVICE_SPECIFICATIONS: DeviceSpec[] = [
   {
     name: "DCL-FCO-LBFCO",
     detail: "Dao cách ly (DCL), cầu chì tự rơi (FCO / LBFCO) trung thế ngoài trời hoặc khoang tủ.",
-    compareType: "ambient",
-    compareDesc: "So sánh chênh lệch giữa nhiệt độ móng vuốt tiếp điểm, lưỡi dao, ngàm kẹp hoặc đầu lèo phát nóng với nhiệt độ môi trường xung quanh (T_mt).",
+    compareType: "reference",
+    compareDesc: "So sánh chênh lệch giữa nhiệt độ móng vuốt tiếp điểm, lưỡi dao, ngàm kẹp hoặc đầu lèo phát nóng với nhiệt độ điểm tham chiếu tương tự (T_tc).",
     ruleDesc: "ΔT < 10°C: Tốt (tần suất chuẩn 03 tháng); 10°C < ΔT <= 20°C: Khá (tần suất 01 tháng); 20°C < ΔT <= 40°C: Trung bình (tần suất 2 tuần); ΔT > 40°C: Xấu (Sửa chữa ngay).",
     inspectionPeriod: "3 tháng/lần",
     thresholds: {

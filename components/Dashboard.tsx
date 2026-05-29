@@ -750,7 +750,7 @@ const Dashboard: React.FC<DashboardProps> = ({ gasUrl, currentUnit, onBack }) =>
                           <div className="flex flex-col">
                             <span className="text-[8px] text-slate-400 uppercase font-black">Chênh lệch ΔT</span>
                             <span className={`text-[11px] font-black ${isEmergency ? 'text-rose-600' : 'text-orange-600'}`}>
-                              {(Number(item.measuredTemp) - Number(item.referenceTemp)).toFixed(1)}°C
+                              {getThermalStatus(item).deltaT.toFixed(1)}°C
                             </span>
                           </div>
                         </div>

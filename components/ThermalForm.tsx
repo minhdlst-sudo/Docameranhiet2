@@ -41,6 +41,7 @@ const ThermalForm: React.FC<ThermalFormProps> = ({ unit, gasUrl, feederGasUrl, o
   const [isLoadingFeeders, setIsLoadingFeeders] = useState(false);
 
   const diagnostic = getThermalStatus(formData);
+  const isDeltaTInvalid = formData.measuredTemp !== undefined && diagnostic.deltaT < 0;
 
   const fetchWeather = () => {
     if (!navigator.geolocation) {
@@ -195,6 +196,11 @@ const ThermalForm: React.FC<ThermalFormProps> = ({ unit, gasUrl, feederGasUrl, o
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
+    if (isDeltaTInvalid) {
+      alert("Lỗi: Delta T không thể nhỏ hơn 0. Vui lòng kiểm tra lại nhiệt độ đo.");
+      return;
+    }
+    
     if (!formData.thermalImage) {
       alert("Vui lòng chọn Ảnh nhiệt (Bắt buộc)");
       return;
@@ -310,7 +316,14 @@ const ThermalForm: React.FC<ThermalFormProps> = ({ unit, gasUrl, feederGasUrl, o
             <select 
               required
               value={formData.deviceName ?? ''}
-              onChange={e => setFormData({...formData, deviceName: e.target.value})}
+              onChange={e => {
+                const name = e.target.value;
+                setFormData(prev => ({
+                  ...prev,
+                  deviceName: name,
+                  currentLoad: name === 'CSV' ? 0 : prev.currentLoad
+                }));
+              }}
               className="w-full p-3.5 bg-slate-50 border border-slate-100 rounded-2xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none text-sm font-bold text-slate-700"
             >
               {DEVICE_SPECIFICATIONS.map(spec => (
@@ -344,16 +357,18 @@ const ThermalForm: React.FC<ThermalFormProps> = ({ unit, gasUrl, feederGasUrl, o
             <div className="flex items-center gap-1.5 px-3 py-1 bg-white border border-blue-100 rounded-full shadow-sm">
               <span className="text-[9px] font-black text-slate-400 uppercase tracking-tighter">ΔT:</span>
               <span className={`text-sm font-black leading-none ${
+                isDeltaTInvalid ? 'text-rose-600' :
                 diagnostic.level === 'Nguy cấp' ? 'text-rose-600' :
                 diagnostic.level === 'Theo dõi' ? 'text-amber-500' : 'text-emerald-600'
               }`}>
                 {diagnostic.deltaT.toFixed(1)}°C
               </span>
               <span className={`text-[9px] font-black uppercase px-1.5 py-0.5 rounded ${
+                isDeltaTInvalid ? 'bg-rose-100 text-rose-700' :
                 diagnostic.level === 'Nguy cấp' ? 'bg-rose-100 text-rose-700' :
                 diagnostic.level === 'Theo dõi' ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'
               }`}>
-                {diagnostic.level}
+                {isDeltaTInvalid ? 'Lỗi ΔT < 0' : diagnostic.level}
               </span>
             </div>
           </div>
@@ -416,14 +431,24 @@ const ThermalForm: React.FC<ThermalFormProps> = ({ unit, gasUrl, feederGasUrl, o
               <div className="relative">
                 <input 
                   type="number" step="0.1" required
-                  value={formData.currentLoad ?? ''}
+                  value={formData.deviceName === 'CSV' ? 0 : (formData.currentLoad ?? '')}
+                  disabled={formData.deviceName === 'CSV'}
                   onChange={e => setFormData({...formData, currentLoad: e.target.value === '' ? undefined : parseFloat(e.target.value)})}
-                  className="w-full p-3.5 bg-white border border-slate-100 rounded-2xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none text-sm font-bold text-slate-700"
+                  className="w-full p-3.5 bg-white border border-slate-100 rounded-2xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none text-sm font-bold text-slate-700 disabled:bg-slate-100/80 disabled:text-slate-400 disabled:cursor-not-allowed transition-all"
                 />
                 <Zap className="w-3 h-3 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2" />
               </div>
             </div>
           </div>
+          {isDeltaTInvalid && (
+            <div className="p-3.5 bg-rose-50 border border-rose-200/50 rounded-2xl flex items-start gap-2.5 text-rose-700 text-xs font-bold animate-fadeIn">
+              <span className="text-sm mt-0.5">⚠️</span>
+              <div>
+                <p className="font-extrabold uppercase tracking-widest text-[9px] text-rose-800">Lỗi giá trị đo</p>
+                <span className="leading-snug">Giá trị Delta T đạt {diagnostic.deltaT.toFixed(1)}°C (&lt; 0°C). Nhiệt độ đo không được nhỏ hơn nhiệt độ so sánh (vui lòng kiểm tra lại).</span>
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="grid grid-cols-2 gap-4">
@@ -547,10 +572,10 @@ const ThermalForm: React.FC<ThermalFormProps> = ({ unit, gasUrl, feederGasUrl, o
 
       <button 
         type="submit" 
-        disabled={isSubmitting}
-        className="w-full p-4 bg-blue-600 text-white rounded-2xl font-black uppercase tracking-widest shadow-lg shadow-blue-200 hover:bg-blue-700 disabled:opacity-50 transition-all active:scale-[0.98]"
+        disabled={isSubmitting || isDeltaTInvalid}
+        className="w-full p-4 bg-blue-600 text-white rounded-2xl font-black uppercase tracking-widest shadow-lg shadow-blue-200 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all active:scale-[0.98]"
       >
-        {isSubmitting ? 'Đang đồng bộ...' : 'Gửi kết quả'}
+        {isSubmitting ? 'Đang đồng bộ...' : isDeltaTInvalid ? 'Lỗi ΔT < 0 (Không hợp lệ)' : 'Gửi kết quả'}
       </button>
     </form>
   );
