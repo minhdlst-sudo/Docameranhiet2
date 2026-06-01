@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { ThermalData, getThermalStatus } from '../types';
+import { ThermalData, getThermalStatus, DEVICE_SPECIFICATIONS } from '../types';
 import { fetchThermalData } from '../services/gasService';
 import { ArrowLeft, Download, FileSpreadsheet } from 'lucide-react';
 
@@ -375,6 +375,14 @@ const DataViewer: React.FC<DataViewerProps> = ({ gasUrl, currentUnit, onBack }) 
             const level = getWarningLevel(item);
             const status = getThermalStatus(item);
             const label = getWarningLabel(level);
+            
+            const spec = DEVICE_SPECIFICATIONS.find(s => s.name === item.deviceName);
+            const isAmbientCompare = spec?.compareType === 'ambient';
+            const compareLabel = isAmbientCompare ? 'Môi trường (T_mt)' : 'Tham chiếu (T_tc)';
+            const compareValue = isAmbientCompare 
+              ? (item.ambientTemp !== undefined && !isNaN(Number(item.ambientTemp)) ? `${item.ambientTemp}°C` : 'N/A')
+              : (item.referenceTemp !== undefined && !isNaN(Number(item.referenceTemp)) ? `${item.referenceTemp}°C` : 'N/A');
+
             return (
               <div key={index} className="p-4 bg-slate-50 rounded-2xl border border-slate-100 space-y-3 hover:border-slate-200 transition-all group">
                 <div className="flex justify-between items-start">
@@ -414,17 +422,17 @@ const DataViewer: React.FC<DataViewerProps> = ({ gasUrl, currentUnit, onBack }) 
                 
                 <div className="grid grid-cols-3 gap-2 py-2.5 border-y border-slate-200/50">
                   <div className="text-center">
-                    <p className="text-[8px] text-slate-400 uppercase font-bold mb-0.5">Nhiệt độ đo</p>
+                    <p className="text-[8px] text-slate-400 uppercase font-black tracking-tight mb-0.5">Nhiệt độ đo</p>
                     <p className={`text-sm font-black ${status.level === 'Nguy cấp' ? 'text-rose-600' : 'text-slate-800'}`}>{item.measuredTemp}°C</p>
                   </div>
                   <div className="text-center border-x border-slate-200/50">
-                    <p className="text-[8px] text-slate-400 uppercase font-bold mb-0.5">Tham chiếu</p>
+                    <p className="text-[8px] text-slate-400 uppercase font-black tracking-tight mb-0.5">{compareLabel}</p>
                     <p className="text-sm font-black text-slate-600">
-                      {item.referenceTemp !== undefined && !isNaN(Number(item.referenceTemp)) ? `${item.referenceTemp}°C` : 'N/A'}
+                      {compareValue}
                     </p>
                   </div>
                   <div className="text-center">
-                    <p className="text-[8px] text-slate-400 uppercase font-bold mb-0.5">Chênh lệch ΔT</p>
+                    <p className="text-[8px] text-slate-400 uppercase font-black tracking-tight mb-0.5">Chênh lệch ΔT</p>
                     <p className={`text-sm font-black ${label.color}`}>{status.deltaT.toFixed(1)}°C</p>
                   </div>
                 </div>

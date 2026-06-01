@@ -5,7 +5,7 @@ import {
   PieChart, Pie, Cell, Legend, LabelList
 } from 'recharts';
 import * as XLSX from 'xlsx';
-import { ThermalData, getThermalStatus } from '../types';
+import { ThermalData, getThermalStatus, DEVICE_SPECIFICATIONS } from '../types';
 import { fetchThermalData } from '../services/gasService';
 import { BarChart3, PieChart as PieChartIcon, ArrowLeft, RefreshCw, Calendar, ClipboardList, CheckCircle2, AlertTriangle, Building2, ChevronDown, AlertCircle, Download } from 'lucide-react';
 import { UNIT_FEEDERS } from '../constants';
@@ -665,6 +665,14 @@ const Dashboard: React.FC<DashboardProps> = ({ gasUrl, currentUnit, onBack }) =>
                 {defectiveLocations.map((item, idx) => {
                   const level = getWarningLevel(item);
                   const isEmergency = level === 'Nguy cấp';
+                  
+                  const spec = DEVICE_SPECIFICATIONS.find(s => s.name === item.deviceName);
+                  const isAmbientCompare = spec?.compareType === 'ambient';
+                  const compareLabel = isAmbientCompare ? 'Môi trường (T_mt)' : 'Tham chiếu (T_tc)';
+                  const compareValue = isAmbientCompare 
+                    ? (item.ambientTemp !== undefined && !isNaN(Number(item.ambientTemp)) ? `${item.ambientTemp}°C` : 'N/A')
+                    : (item.referenceTemp !== undefined && !isNaN(Number(item.referenceTemp)) ? `${item.referenceTemp}°C` : 'N/A');
+
                   return (
                     <div key={idx} className={`p-4 rounded-2xl border transition-all ${isEmergency ? 'bg-rose-50 border-rose-100' : 'bg-orange-50 border-orange-100'}`}>
                       <div className="flex justify-between items-start mb-2">
@@ -746,6 +754,10 @@ const Dashboard: React.FC<DashboardProps> = ({ gasUrl, currentUnit, onBack }) =>
                           <div className="flex flex-col">
                             <span className="text-[8px] text-slate-400 uppercase font-black">Nhiệt độ đo</span>
                             <span className="text-[11px] font-black text-slate-800">{item.measuredTemp}°C</span>
+                          </div>
+                          <div className="flex flex-col">
+                            <span className="text-[8px] text-slate-400 uppercase font-black">{compareLabel}</span>
+                            <span className="text-[11px] font-black text-slate-600">{compareValue}</span>
                           </div>
                           <div className="flex flex-col">
                             <span className="text-[8px] text-slate-400 uppercase font-black">Chênh lệch ΔT</span>
