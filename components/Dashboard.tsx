@@ -24,6 +24,7 @@ const Dashboard: React.FC<DashboardProps> = ({ gasUrl, currentUnit, onBack }) =>
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [deviceFilterLevel, setDeviceFilterLevel] = useState<'Tất cả' | 'Nguy cấp' | 'Theo dõi'>('Tất cả');
 
   const units = useMemo(() => {
     return ['Toàn Công ty', ...Object.keys(UNIT_FEEDERS)];
@@ -274,6 +275,37 @@ const Dashboard: React.FC<DashboardProps> = ({ gasUrl, currentUnit, onBack }) =>
       return new Date(b.date).getTime() - new Date(a.date).getTime();
     });
   }, [data]);
+
+  const deviceStats = useMemo(() => {
+    const stats: Record<string, number> = {};
+    
+    // Initialize standard device types so they can be counted
+    DEVICE_SPECIFICATIONS.forEach(spec => {
+      stats[spec.name] = 0;
+    });
+    
+    data.forEach(item => {
+      const status = getThermalStatus(item);
+      const level = status.level;
+      const isDefect = level === 'Theo dõi' || level === 'Nguy cấp';
+      if (!isDefect) return;
+
+      const deviceName = item.deviceName || 'Khác';
+      
+      const matchesFilter = 
+        deviceFilterLevel === 'Tất cả' || 
+        level === deviceFilterLevel;
+        
+      if (matchesFilter) {
+        stats[deviceName] = (stats[deviceName] || 0) + 1;
+      }
+    });
+
+    return Object.entries(stats)
+      .map(([name, count]) => ({ name, count }))
+      .filter(item => item.count > 0)
+      .sort((a, b) => b.count - a.count);
+  }, [data, deviceFilterLevel]);
 
   const exportToExcel = () => {
     if (defectiveLocations.length === 0) {
@@ -635,6 +667,70 @@ const Dashboard: React.FC<DashboardProps> = ({ gasUrl, currentUnit, onBack }) =>
                   />
                 </PieChart>
               </ResponsiveContainer>
+            </div>
+          </div>
+
+          {/* Thống kê thiết bị khiếm khuyết */}
+          <div className="space-y-4 pt-4 border-t border-slate-100">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 text-slate-400" />
+                <h3 className="text-xs font-black text-slate-500 uppercase tracking-wider">Thống kê thiết bị khiếm khuyết</h3>
+              </div>
+              
+              <div className="relative group flex items-center">
+                <select 
+                  value={deviceFilterLevel}
+                  onChange={(e) => setDeviceFilterLevel(e.target.value as any)}
+                  className="appearance-none bg-blue-50 hover:bg-blue-100 border-none rounded-xl py-1.5 pl-3 pr-8 text-[10px] font-bold text-blue-600 uppercase tracking-wider cursor-pointer focus:ring-2 focus:ring-blue-500 transition-all outline-none w-auto"
+                >
+                  <option value="Tất cả">Tất cả khiếm khuyết</option>
+                  <option value="Nguy cấp">Nguy cấp</option>
+                  <option value="Theo dõi">Theo dõi</option>
+                </select>
+                <ChevronDown className="w-3.5 h-3.5 text-blue-600 absolute right-2.5 pointer-events-none" />
+              </div>
+            </div>
+
+            <div className="bg-slate-50/50 p-4 rounded-2xl border border-slate-100/80">
+              {deviceStats.length === 0 ? (
+                <div className="text-center py-8 text-[10px] font-bold text-slate-400 italic">
+                  Không ghi nhận thiết bị nào có mức độ {deviceFilterLevel === 'Tất cả' ? 'khiếm khuyết' : `"${deviceFilterLevel}"`}
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                  {deviceStats.map((stat, idx) => {
+                    const totalDefects = deviceStats.reduce((sum, item) => sum + item.count, 0);
+                    const percentage = totalDefects > 0 ? (stat.count / totalDefects) * 100 : 0;
+                    
+                    const progressColor = deviceFilterLevel === 'Nguy cấp' ? 'bg-rose-500' : deviceFilterLevel === 'Theo dõi' ? 'bg-amber-500' : 'bg-blue-500';
+                    const progressBg = deviceFilterLevel === 'Nguy cấp' ? 'bg-rose-100/50' : deviceFilterLevel === 'Theo dõi' ? 'bg-amber-100/50' : 'bg-blue-100/50';
+                    const badgeColor = deviceFilterLevel === 'Nguy cấp' ? 'bg-rose-50 text-rose-600 border-rose-100/50' : deviceFilterLevel === 'Theo dõi' ? 'bg-amber-50 text-amber-600 border-amber-100/50' : 'bg-blue-50 text-blue-600 border-blue-100/50';
+
+                    return (
+                      <div key={idx} className="bg-white p-3.5 rounded-2xl border border-slate-200/45 hover:border-slate-300 transition-all shadow-sm flex flex-col justify-between">
+                        <div className="flex justify-between items-start mb-2.5">
+                          <div className="flex-1 min-w-0 pr-2">
+                            <p className="text-[11px] font-black text-slate-800 uppercase tracking-tight truncate">{stat.name}</p>
+                            <span className="text-[9px] text-slate-400 font-bold">
+                              Chiếm {percentage.toFixed(1)}% trong nhóm
+                            </span>
+                          </div>
+                          <span className={`text-[10px] font-black px-2.5 py-1 rounded-xl border ${badgeColor} flex-shrink-0`}>
+                            {stat.count} vị trí
+                          </span>
+                        </div>
+                        <div className={`w-full ${progressBg} rounded-full h-1.5 overflow-hidden`}>
+                          <div 
+                            className={`${progressColor} h-full rounded-full transition-all duration-500`} 
+                            style={{ width: `${percentage}%` }}
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           </div>
 
