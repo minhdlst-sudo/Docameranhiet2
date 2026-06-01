@@ -25,6 +25,8 @@ const Dashboard: React.FC<DashboardProps> = ({ gasUrl, currentUnit, onBack }) =>
   const [error, setError] = useState<string | null>(null);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [deviceFilterLevel, setDeviceFilterLevel] = useState<'Tất cả' | 'Nguy cấp' | 'Theo dõi'>('Tất cả');
+  const [defectFilterLevel, setDefectFilterLevel] = useState<'Tất cả' | 'Nguy cấp' | 'Theo dõi'>('Tất cả');
+  const [defectFilterStatus, setDefectFilterStatus] = useState<'Tất cả' | 'Đã xử lý' | 'Đã lập KH' | 'Chưa lập KH'>('Tất cả');
 
   const units = useMemo(() => {
     return ['Toàn Công ty', ...Object.keys(UNIT_FEEDERS)];
@@ -263,7 +265,27 @@ const Dashboard: React.FC<DashboardProps> = ({ gasUrl, currentUnit, onBack }) =>
   const defectiveLocations = useMemo(() => {
     return data.filter(item => {
       const status = getThermalStatus(item);
-      return status.level === 'Theo dõi' || status.level === 'Nguy cấp';
+      const isDefect = status.level === 'Theo dõi' || status.level === 'Nguy cấp';
+      if (!isDefect) return false;
+
+      // Lọc theo mức độ (Nguy cấp / Theo dõi)
+      if (defectFilterLevel !== 'Tất cả' && status.level !== defectFilterLevel) {
+        return false;
+      }
+
+      // Lọc theo trạng thái xử lý/lập kế hoạch
+      const hasPlan = item.actionPlan && item.actionPlan.trim() !== "";
+      const isProcessed = (item.processedDate && item.processedDate.trim() !== "") || (item.postTemp && String(item.postTemp).trim() !== "");
+
+      if (defectFilterStatus === 'Đã xử lý') {
+        if (!isProcessed) return false;
+      } else if (defectFilterStatus === 'Đã lập KH') {
+        if (isProcessed || !hasPlan) return false;
+      } else if (defectFilterStatus === 'Chưa lập KH') {
+        if (isProcessed || hasPlan) return false;
+      }
+
+      return true;
     }).sort((a, b) => {
       // Sắp xếp: Nguy cấp trước, Theo dõi sau, rồi đến ngày mới nhất
       const levelA = getWarningLevel(a);
@@ -274,7 +296,7 @@ const Dashboard: React.FC<DashboardProps> = ({ gasUrl, currentUnit, onBack }) =>
       
       return new Date(b.date).getTime() - new Date(a.date).getTime();
     });
-  }, [data]);
+  }, [data, defectFilterLevel, defectFilterStatus]);
 
   const deviceStats = useMemo(() => {
     const stats: Record<string, number> = {};
@@ -736,25 +758,58 @@ const Dashboard: React.FC<DashboardProps> = ({ gasUrl, currentUnit, onBack }) =>
 
           {/* Danh sách vị trí khiếm khuyết */}
           <div className="space-y-4 pt-4 border-t border-slate-100">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <AlertCircle className="w-4 h-4 text-rose-500" />
-                <h3 className="text-xs font-black text-slate-800 uppercase tracking-wider">Danh sách vị trí khiếm khuyết ({defectiveLocations.length})</h3>
+            <div className="flex flex-col gap-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 text-rose-500" />
+                  <h3 className="text-xs font-black text-slate-800 uppercase tracking-wider">Danh sách vị trí khiếm khuyết ({defectiveLocations.length})</h3>
+                </div>
+                {defectiveLocations.length > 0 && (
+                  <button 
+                    onClick={exportToExcel}
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 text-emerald-600 rounded-xl text-[10px] font-black uppercase tracking-wider hover:bg-emerald-100 transition-all shadow-sm active:scale-95-shrink-0"
+                  >
+                    <Download className="w-3 h-3" />
+                    <span>Xuất Excel</span>
+                  </button>
+                )}
               </div>
-              {defectiveLocations.length > 0 && (
-                <button 
-                  onClick={exportToExcel}
-                  className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 text-emerald-600 rounded-xl text-[10px] font-black uppercase tracking-wider hover:bg-emerald-100 transition-all shadow-sm active:scale-95"
-                >
-                  <Download className="w-3 h-3" />
-                  <span>Xuất Excel</span>
-                </button>
-              )}
+
+              <div className="flex flex-wrap gap-2">
+                {/* Lọc theo mức độ khiếm khuyết */}
+                <div className="relative group flex items-center">
+                  <select 
+                    value={defectFilterLevel}
+                    onChange={(e) => setDefectFilterLevel(e.target.value as any)}
+                    className="appearance-none bg-blue-50 hover:bg-blue-100 border-none rounded-xl py-1.5 pl-3 pr-8 text-[10px] font-bold text-blue-600 uppercase tracking-wider cursor-pointer focus:ring-2 focus:ring-blue-500 transition-all outline-none w-auto"
+                  >
+                    <option value="Tất cả">Tất cả mức độ</option>
+                    <option value="Nguy cấp">Nguy cấp</option>
+                    <option value="Theo dõi">Theo dõi</option>
+                  </select>
+                  <ChevronDown className="w-3.5 h-3.5 text-blue-600 absolute right-2.5 pointer-events-none" />
+                </div>
+
+                {/* Lọc theo trạng thái lập KH & xử lý */}
+                <div className="relative group flex items-center">
+                  <select 
+                    value={defectFilterStatus}
+                    onChange={(e) => setDefectFilterStatus(e.target.value as any)}
+                    className="appearance-none bg-slate-100 hover:bg-slate-200 border-none rounded-xl py-1.5 pl-3 pr-8 text-[10px] font-bold text-slate-600 uppercase tracking-wider cursor-pointer focus:ring-2 focus:ring-blue-500 transition-all outline-none w-auto"
+                  >
+                    <option value="Tất cả">Tất cả trạng thái</option>
+                    <option value="Đã xử lý">Đã xử lý</option>
+                    <option value="Đã lập KH">Đã lập KH</option>
+                    <option value="Chưa lập KH">Chưa lập KH</option>
+                  </select>
+                  <ChevronDown className="w-3.5 h-3.5 text-slate-600 absolute right-2.5 pointer-events-none" />
+                </div>
+              </div>
             </div>
 
             {defectiveLocations.length === 0 ? (
               <div className="py-8 text-center bg-slate-50 rounded-2xl border border-dashed border-slate-200">
-                <p className="text-slate-400 text-[10px] italic">Không có vị trí khiếm khuyết nào.</p>
+                <p className="text-slate-400 text-[10px] italic">Không tìm thấy vị trí khiếm khuyết nào phù hợp với bộ lọc.</p>
               </div>
             ) : (
               <div className="space-y-3 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
