@@ -338,8 +338,8 @@ const Dashboard: React.FC<DashboardProps> = ({ gasUrl, currentUnit, onBack }) =>
       : [selectedStatUnit];
 
     // Hàm dọn dẹp các dấu tiếng Việt thành không dấu
-    const removeVietnameseTones = (str: string): string => {
-      let s = str;
+    const removeVietnameseTones = (str: any): string => {
+      let s = String(str || '');
       s = s.replace(/à|á|ạ|ả|ã|â|ầ|ấ|ậ|ẩ|ẫ|ă|ằ|ắ|ặ|ẳ|ẵ/g, "a");
       s = s.replace(/è|é|ẹ|ẻ|ẽ|ê|ề|ế|ệ|ể|ễ/g, "e");
       s = s.replace(/ì|í|ị|ỉ|ĩ/g, "i");
@@ -353,11 +353,12 @@ const Dashboard: React.FC<DashboardProps> = ({ gasUrl, currentUnit, onBack }) =>
     };
 
     // Hàm chuẩn hóa tên xuất tuyến phục vụ việc so sánh đối chiếu chính xác nhất
-    const normalizeFeederName = (name: string): string => {
-      if (!name) return "";
+    const normalizeFeederName = (name: any): string => {
+      const nameStr = String(name || '').trim();
+      if (!nameStr) return "";
       
       // 1. Chuyển thành chữ thường và dọn dẹp dấu tiếng Việt
-      let s = removeVietnameseTones(name.trim().toLowerCase());
+      let s = removeVietnameseTones(nameStr.toLowerCase());
       
       // 2. Loại bỏ các tiền tố thông dụng ở đầu chuỗi một cách triệt để
       // bao gồm: xuất tuyến, lộ, đường dây, đz, dz, đd, dd, nhánh rẽ, nr, dây, xt
@@ -370,8 +371,8 @@ const Dashboard: React.FC<DashboardProps> = ({ gasUrl, currentUnit, onBack }) =>
     };
 
     // Hàm trích xuất các chữ số từ chuỗi phục vụ kiểm tra trùng số tuyến đường dây
-    const extractNumbers = (str: string): string => {
-      return str.replace(/[^0-9]/g, "");
+    const extractNumbers = (str: any): string => {
+      return String(str || '').replace(/[^0-9]/g, "");
     };
 
     const stats: Array<{
@@ -385,10 +386,15 @@ const Dashboard: React.FC<DashboardProps> = ({ gasUrl, currentUnit, onBack }) =>
       const unitRecords = timeFilteredData.filter(item => item.unit === unit);
       
       // Lấy danh sách xuất tuyến từ quản lý xuất tuyến. Nếu chưa có thì lấy từ danh sách mặc định
-      let configuredFeeders = getFeedersForUnit(unit);
-      if (configuredFeeders.length === 0) {
-        configuredFeeders = UNIT_FEEDERS[unit] || [];
+      let rawConfigured = getFeedersForUnit(unit);
+      if (!Array.isArray(rawConfigured) || rawConfigured.length === 0) {
+        rawConfigured = UNIT_FEEDERS[unit] || [];
       }
+
+      // Đảm bảo tất cả phần tử là string sạch sẽ để tránh lỗi chơi chữ kiểu số (v.d. kiểu số từ Sheet/JSON)
+      const configuredFeeders = rawConfigured
+        .map(f => String(f || '').trim())
+        .filter(f => f !== '');
 
       // Khởi tạo tất cả xuất tuyến cấu hình với số lượt đo = 0
       const counts: Record<string, number> = {};
@@ -399,14 +405,14 @@ const Dashboard: React.FC<DashboardProps> = ({ gasUrl, currentUnit, onBack }) =>
       // Đối chiếu và cộng dồn số lượt đo thực tế
       unitRecords.forEach(item => {
         if (item.feeder) {
-          const rawFeeder = item.feeder.trim();
+          const rawFeeder = String(item.feeder).trim();
           const normRaw = normalizeFeederName(rawFeeder);
 
           if (!normRaw) return;
 
           // 1. Đối chiếu khớp hoàn hảo hoặc sau khi chuẩn hóa
           let matchedConfigured = configuredFeeders.find(c => 
-            c.trim().toLowerCase() === rawFeeder.toLowerCase() ||
+            c.toLowerCase() === rawFeeder.toLowerCase() ||
             normalizeFeederName(c) === normRaw
           );
 
