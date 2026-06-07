@@ -777,7 +777,7 @@ const Dashboard: React.FC<DashboardProps> = ({ gasUrl, currentUnit, onBack }) =>
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className={`grid gap-5 ${feederMeasurementStats.length === 1 ? 'grid-cols-1' : 'grid-cols-1 lg:grid-cols-2'}`}>
               {feederMeasurementStats.map((stat, idx) => {
                 const displayedFeeders = hideZeroMeasurements 
                   ? stat.feeders.filter(f => f.count > 0)
@@ -802,7 +802,11 @@ const Dashboard: React.FC<DashboardProps> = ({ gasUrl, currentUnit, onBack }) =>
                         Không có dữ liệu lượt đo phù hợp
                       </div>
                     ) : (
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-[180px] overflow-y-auto pr-1 custom-scrollbar">
+                      <div className={`grid gap-2 overflow-y-auto pr-1 custom-scrollbar ${
+                        feederMeasurementStats.length === 1 
+                          ? 'grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 max-h-[350px]' 
+                          : 'grid-cols-1 sm:grid-cols-2 max-h-[220px]'
+                      }`}>
                         {displayedFeeders.map((f, fIdx) => {
                           const percentage = stat.totalMeasurements > 0 ? (f.count / stat.totalMeasurements) * 100 : 0;
                           const hasMeasurements = f.count > 0;
@@ -853,7 +857,7 @@ const Dashboard: React.FC<DashboardProps> = ({ gasUrl, currentUnit, onBack }) =>
                 );
               })}
               {feederMeasurementStats.length === 0 && (
-                <div className="col-span-1 md:col-span-2 py-8 text-center bg-slate-50 rounded-2xl border border-slate-100 italic text-[10px] font-bold text-slate-400">
+                <div className="col-span-full py-8 text-center bg-slate-50 rounded-2xl border border-slate-100 italic text-[10px] font-bold text-slate-400">
                   Không tìm thấy dữ liệu lượt đo nào phù hợp
                 </div>
               )}
