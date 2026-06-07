@@ -337,15 +337,41 @@ const Dashboard: React.FC<DashboardProps> = ({ gasUrl, currentUnit, onBack }) =>
       ? Object.keys(UNIT_FEEDERS) 
       : [selectedStatUnit];
 
+    // Hàm dọn dẹp các dấu tiếng Việt thành không dấu
+    const removeVietnameseTones = (str: string): string => {
+      let s = str;
+      s = s.replace(/à|á|ạ|ả|ã|â|ầ|ấ|ậ|ẩ|ẫ|ă|ằ|ắ|ặ|ẳ|ẵ/g, "a");
+      s = s.replace(/è|é|ẹ|ẻ|ẽ|ê|ề|ế|ệ|ể|ễ/g, "e");
+      s = s.replace(/ì|í|ị|ỉ|ĩ/g, "i");
+      s = s.replace(/ò|ó|ọ|ỏ|õ|ô|ồ|ố|ộ|ổ|ỗ|ơ|ờ|ớ|ợ|ở|ỡ/g, "o");
+      s = s.replace(/ù|ú|ụ|ủ|ũ|ư|ừ|ứ|ự|ử|ữ/g, "u");
+      s = s.replace(/ỳ|ý|ỵ|ỷ|ỹ/g, "y");
+      s = s.replace(/đ/g, "d");
+      
+      // Chuẩn hóa ký tự tổ hợp khác của tiếng Việt
+      return s.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    };
+
     // Hàm chuẩn hóa tên xuất tuyến phục vụ việc so sánh đối chiếu chính xác nhất
     const normalizeFeederName = (name: string): string => {
       if (!name) return "";
-      return name
-        .toLowerCase()
-        .replace(/^(xuất\s+tuyến|xuat\s+tuyen)\s*/i, '') // Loại bỏ chữ "xuất tuyến" hoặc "xuat tuyen" ở đầu
-        .replace(/^xt\s*/i, '')                         // Loại bỏ chữ "xt" ở đầu
-        .replace(/[^a-z0-9]/g, '')                      // Giữ lại ký tự thường và số
-        .trim();
+      
+      // 1. Chuyển thành chữ thường và dọn dẹp dấu tiếng Việt
+      let s = removeVietnameseTones(name.trim().toLowerCase());
+      
+      // 2. Loại bỏ các tiền tố thông dụng ở đầu chuỗi một cách triệt để
+      // bao gồm: xuất tuyến, lộ, đường dây, đz, dz, đd, dd, nhánh rẽ, nr, dây, xt
+      s = s.replace(/^(xuat\s+tuyen|xuattuyen|lo|duong\s+day|duongday|dz|dd|xt|nhanh\s+re|nhanhre|nr|day)\s*/g, "");
+      
+      // 3. Loại bỏ ký tự đặc biệt và dấu cách thừa
+      s = s.replace(/[^a-z0-9]/g, "");
+      
+      return s.trim();
+    };
+
+    // Hàm trích xuất các chữ số từ chuỗi phục vụ kiểm tra trùng số tuyến đường dây
+    const extractNumbers = (str: string): string => {
+      return str.replace(/[^0-9]/g, "");
     };
 
     const stats: Array<{
@@ -384,10 +410,16 @@ const Dashboard: React.FC<DashboardProps> = ({ gasUrl, currentUnit, onBack }) =>
             normalizeFeederName(c) === normRaw
           );
 
-          // 2. Đối chiếu khớp mờ (một bên chứa bên còn lại) nếu chưa tìm thấy
+          // 2. Đối chiếu khớp mờ (một bên chứa bên còn lại) nếu chưa tìm thấy,
+          // NHƯNG bắt buộc các con số bên trong phải giống nhau hoàn toàn để tránh khớp sai ví dụ 471 sang 472
           if (!matchedConfigured) {
+            const rawNumbers = extractNumbers(normRaw);
             matchedConfigured = configuredFeeders.find(c => {
               const normC = normalizeFeederName(c);
+              const configNumbers = extractNumbers(normC);
+              
+              if (rawNumbers !== configNumbers) return false;
+              
               return normC && (normRaw.includes(normC) || normC.includes(normRaw));
             });
           }
