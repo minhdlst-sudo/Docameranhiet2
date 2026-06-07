@@ -804,7 +804,7 @@ const Dashboard: React.FC<DashboardProps> = ({ gasUrl, currentUnit, onBack }) =>
                     ) : (
                       <div className={`grid gap-2 overflow-y-auto pr-1 custom-scrollbar ${
                         feederMeasurementStats.length === 1 
-                          ? 'grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 max-h-[350px]' 
+                          ? 'grid-cols-1 sm:grid-cols-2 md:grid-cols-3 max-h-[350px]' 
                           : 'grid-cols-1 sm:grid-cols-2 max-h-[220px]'
                       }`}>
                         {displayedFeeders.map((f, fIdx) => {
