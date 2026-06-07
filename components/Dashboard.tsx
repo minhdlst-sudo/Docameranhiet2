@@ -9,6 +9,7 @@ import { ThermalData, getThermalStatus, DEVICE_SPECIFICATIONS } from '../types';
 import { fetchThermalData } from '../services/gasService';
 import { BarChart3, PieChart as PieChartIcon, ArrowLeft, RefreshCw, Calendar, ClipboardList, CheckCircle2, AlertTriangle, Building2, ChevronDown, AlertCircle, Download } from 'lucide-react';
 import { UNIT_FEEDERS } from '../constants';
+import { getFeedersForUnit } from '../services/feederService';
 
 interface DashboardProps {
   gasUrl: string;
@@ -27,6 +28,7 @@ const Dashboard: React.FC<DashboardProps> = ({ gasUrl, currentUnit, onBack }) =>
   const [deviceFilterLevel, setDeviceFilterLevel] = useState<'Tất cả' | 'Nguy cấp' | 'Theo dõi'>('Tất cả');
   const [defectFilterLevel, setDefectFilterLevel] = useState<'Tất cả' | 'Nguy cấp' | 'Theo dõi'>('Tất cả');
   const [defectFilterStatus, setDefectFilterStatus] = useState<'Tất cả' | 'Đã xử lý' | 'Đã lập KH' | 'Chưa lập KH'>('Tất cả');
+  const [hideZeroMeasurements, setHideZeroMeasurements] = useState<boolean>(false);
 
   const units = useMemo(() => {
     return ['Toàn Công ty', ...Object.keys(UNIT_FEEDERS)];
@@ -329,6 +331,130 @@ const Dashboard: React.FC<DashboardProps> = ({ gasUrl, currentUnit, onBack }) =>
       .sort((a, b) => b.count - a.count);
   }, [data, deviceFilterLevel]);
 
+  // Thống kê số lượt đo theo từng xuất tuyến của từng đơn vị
+  const feederMeasurementStats = useMemo(() => {
+    const targetUnits = selectedStatUnit === 'Toàn Công ty' 
+      ? Object.keys(UNIT_FEEDERS) 
+      : [selectedStatUnit];
+
+    // Hàm chuẩn hóa tên xuất tuyến phục vụ việc so sánh đối chiếu chính xác nhất
+    const normalizeFeederName = (name: string): string => {
+      if (!name) return "";
+      return name
+        .toLowerCase()
+        .replace(/^(xuất\s+tuyến|xuat\s+tuyen)\s*/i, '') // Loại bỏ chữ "xuất tuyến" hoặc "xuat tuyen" ở đầu
+        .replace(/^xt\s*/i, '')                         // Loại bỏ chữ "xt" ở đầu
+        .replace(/[^a-z0-9]/g, '')                      // Giữ lại ký tự thường và số
+        .trim();
+    };
+
+    const stats: Array<{
+      unit: string;
+      totalMeasurements: number;
+      feeders: Array<{ feederName: string; count: number }>;
+    }> = [];
+
+    targetUnits.forEach(unit => {
+      // Dữ liệu đo của đơn vị trong khoảng thời gian đã chọn
+      const unitRecords = timeFilteredData.filter(item => item.unit === unit);
+      
+      // Lấy danh sách xuất tuyến từ quản lý xuất tuyến. Nếu chưa có thì lấy từ danh sách mặc định
+      let configuredFeeders = getFeedersForUnit(unit);
+      if (configuredFeeders.length === 0) {
+        configuredFeeders = UNIT_FEEDERS[unit] || [];
+      }
+
+      // Khởi tạo tất cả xuất tuyến cấu hình với số lượt đo = 0
+      const counts: Record<string, number> = {};
+      configuredFeeders.forEach(f => {
+        counts[f] = 0;
+      });
+
+      // Đối chiếu và cộng dồn số lượt đo thực tế
+      unitRecords.forEach(item => {
+        if (item.feeder) {
+          const rawFeeder = item.feeder.trim();
+          const normRaw = normalizeFeederName(rawFeeder);
+
+          if (!normRaw) return;
+
+          // 1. Đối chiếu khớp hoàn hảo hoặc sau khi chuẩn hóa
+          let matchedConfigured = configuredFeeders.find(c => 
+            c.trim().toLowerCase() === rawFeeder.toLowerCase() ||
+            normalizeFeederName(c) === normRaw
+          );
+
+          // 2. Đối chiếu khớp mờ (một bên chứa bên còn lại) nếu chưa tìm thấy
+          if (!matchedConfigured) {
+            matchedConfigured = configuredFeeders.find(c => {
+              const normC = normalizeFeederName(c);
+              return normC && (normRaw.includes(normC) || normC.includes(normRaw));
+            });
+          }
+
+          // 3. Nếu tìm được, ghi nhận số liệu đo vào xuất tuyến ở phần QL xuất tuyến
+          if (matchedConfigured) {
+            counts[matchedConfigured] = (counts[matchedConfigured] || 0) + 1;
+          } else {
+            // Nếu hoàn toàn không khớp với cấu hình nào, ta vẫn hiển thị chính nó để tránh mất số liệu
+            counts[rawFeeder] = (counts[rawFeeder] || 0) + 1;
+          }
+        }
+      });
+
+      const feedersList = Object.entries(counts).map(([feederName, count]) => ({
+        feederName,
+        count
+      })).sort((a, b) => b.count - a.count || a.feederName.localeCompare(b.feederName));
+
+      stats.push({
+        unit,
+        totalMeasurements: unitRecords.length,
+        feeders: feedersList
+      });
+    });
+
+    // Sắp xếp các đơn vị có nhiều lượt đo lên đầu
+    return stats.sort((a, b) => b.totalMeasurements - a.totalMeasurements || a.unit.localeCompare(b.unit));
+  }, [timeFilteredData, selectedStatUnit]);
+
+  const exportFeederStatsToExcel = () => {
+    if (feederMeasurementStats.length === 0) {
+      alert('Không có dữ liệu thống kê xuất tuyến để xuất!');
+      return;
+    }
+
+    const exportData: any[] = [];
+    feederMeasurementStats.forEach(unitStat => {
+      unitStat.feeders.forEach(f => {
+        exportData.push({
+          'Đơn vị': unitStat.unit,
+          'Xuất tuyến': f.feederName,
+          'Số lượt đo': f.count,
+          'Tổng lượt đo đơn vị': unitStat.totalMeasurements,
+          'Tỷ lệ lượt đo trong đơn vị (%)': unitStat.totalMeasurements > 0 ? ((f.count / unitStat.totalMeasurements) * 100).toFixed(1) : '0'
+        });
+      });
+    });
+
+    const worksheet = XLSX.utils.json_to_sheet(exportData);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Thong ke xuat tuyen");
+
+    // Đặt độ rộng cột
+    const wscols = [
+      { wch: 30 }, // Đơn vị
+      { wch: 20 }, // Xuất tuyến
+      { wch: 15 }, // Số lượt đo
+      { wch: 25 }, // Tổng lượt đo đơn vị
+      { wch: 30 }  // Tỷ lệ
+    ];
+    worksheet['!cols'] = wscols;
+
+    const fileName = `Thong_ke_xuat_tuyen_${selectedMonth === 0 ? 'Ca_nam' : `Thang_${selectedMonth}`}_${selectedYear}.xlsx`;
+    XLSX.writeFile(workbook, fileName);
+  };
+
   const exportToExcel = () => {
     if (defectiveLocations.length === 0) {
       alert('Không có dữ liệu khiếm khuyết để xuất!');
@@ -576,6 +702,123 @@ const Dashboard: React.FC<DashboardProps> = ({ gasUrl, currentUnit, onBack }) =>
                   )}
                 </tbody>
               </table>
+            </div>
+          </div>
+
+          {/* Thống kê số lượt đo theo xuất tuyến */}
+          <div className="space-y-4 pt-4 border-t border-slate-100">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <ClipboardList className="w-4 h-4 text-slate-400" />
+                <h3 className="text-xs font-black text-slate-500 uppercase tracking-wider">
+                  Thống kê lượt đo theo xuất tuyến ({selectedMonth === 0 ? `Năm ${selectedYear}` : `Tháng ${selectedMonth}/${selectedYear}`})
+                </h3>
+              </div>
+              <div className="flex items-center gap-2 flex-wrap">
+                {/* Toggle ẩn/hiện xuất tuyến 0 lượt đo */}
+                <button
+                  onClick={() => setHideZeroMeasurements(prev => !prev)}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all border ${
+                    hideZeroMeasurements 
+                      ? 'bg-blue-50 text-blue-600 border-blue-200' 
+                      : 'bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100'
+                  }`}
+                >
+                  <span>{hideZeroMeasurements ? 'Hiện xuất tuyến 0 lượt đo' : 'Ẩn xuất tuyến 0 lượt đo'}</span>
+                </button>
+
+                {feederMeasurementStats.length > 0 && (
+                  <button 
+                    onClick={exportFeederStatsToExcel}
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 text-emerald-600 rounded-xl text-[10px] font-black uppercase tracking-wider hover:bg-emerald-100 transition-all shadow-sm active:scale-95"
+                  >
+                    <Download className="w-3 h-3" />
+                    <span>Xuất Excel</span>
+                  </button>
+                )}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {feederMeasurementStats.map((stat, idx) => {
+                const displayedFeeders = hideZeroMeasurements 
+                  ? stat.feeders.filter(f => f.count > 0)
+                  : stat.feeders;
+
+                return (
+                  <div key={idx} className="bg-slate-50/50 p-4 rounded-2xl border border-slate-100/80 space-y-3 shadow-inner">
+                    <div className="flex justify-between items-center pb-2 border-b border-slate-200/50">
+                      <div className="min-w-0 pr-2">
+                        <h4 className="text-[11px] font-black text-slate-1000 font-extrabold text-slate-800 uppercase tracking-tight truncate">{stat.unit}</h4>
+                        <p className="text-[8px] text-slate-400 font-bold uppercase tracking-wider mt-0.5">
+                          {selectedMonth === 0 ? `Cả năm ${selectedYear}` : `Tháng ${selectedMonth}/${selectedYear}`}
+                        </p>
+                      </div>
+                      <span className="text-[10px] font-black px-2.5 py-1 bg-blue-55 bg-blue-50 text-blue-600 rounded-xl border border-blue-100/50 flex-shrink-0">
+                        {stat.totalMeasurements} lượt đo
+                      </span>
+                    </div>
+
+                    {displayedFeeders.length === 0 ? (
+                      <div className="py-6 text-center text-[10px] font-bold text-slate-400 italic">
+                        Không có dữ liệu lượt đo phù hợp
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-[180px] overflow-y-auto pr-1 custom-scrollbar">
+                        {displayedFeeders.map((f, fIdx) => {
+                          const percentage = stat.totalMeasurements > 0 ? (f.count / stat.totalMeasurements) * 100 : 0;
+                          const hasMeasurements = f.count > 0;
+                          return (
+                            <div 
+                              key={fIdx} 
+                              className={`p-2.5 rounded-xl border flex flex-col justify-between transition-all ${
+                                hasMeasurements 
+                                  ? 'bg-white border-slate-200/60 hover:border-blue-200 shadow-sm' 
+                                  : 'bg-rose-50/50 border-rose-100 hover:border-rose-200 shadow-sm'
+                              }`}
+                            >
+                              <div className="flex justify-between items-center mb-1.5 gap-1.5">
+                                <span className={`text-[10px] font-extrabold uppercase tracking-tight truncate ${
+                                  hasMeasurements ? 'text-slate-700' : 'text-rose-600 font-extrabold'
+                                }`}>
+                                  {f.feederName}
+                                </span>
+                                <span className={`text-[9px] font-black px-1.5 py-0.5 rounded-lg flex-shrink-0 ${
+                                  hasMeasurements ? 'bg-blue-50 text-blue-600' : 'bg-rose-100 text-rose-600 border border-rose-200'
+                                }`}>
+                                  {f.count}
+                                </span>
+                              </div>
+                              <div className="space-y-1">
+                                <div className="w-full bg-slate-100 rounded-full h-1 overflow-hidden">
+                                  <div 
+                                    className={`h-full rounded-full transition-all duration-300 ${
+                                      hasMeasurements ? 'bg-blue-500' : 'bg-rose-500'
+                                    }`} 
+                                    style={{ width: `${percentage}%` }}
+                                  />
+                                </div>
+                                {hasMeasurements && (
+                                  <div className="flex justify-end">
+                                    <span className="text-[7.5px] font-black text-slate-400">
+                                      Tỷ lệ: {percentage.toFixed(1)}%
+                                    </span>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+              {feederMeasurementStats.length === 0 && (
+                <div className="col-span-1 md:col-span-2 py-8 text-center bg-slate-50 rounded-2xl border border-slate-100 italic text-[10px] font-bold text-slate-400">
+                  Không tìm thấy dữ liệu lượt đo nào phù hợp
+                </div>
+              )}
             </div>
           </div>
 
